@@ -1,6 +1,6 @@
-# Quest Learning App *(working title)*
+# ลุยเควส (LuiQuest)
 
-> A gamified, AI-assisted micro-learning app that turns any topic into a daily quest — built to run entirely on free-tier infrastructure.
+> **"อยากเก่งอะไร ลุยเลย — วันละเควส"** — a gamified, AI-assisted micro-learning app that turns any topic into a daily quest, built to run entirely on free-tier infrastructure.
 
 **Status:** 🧭 Spec-driven planning phase. This repository is currently being scoped ticket-by-ticket before implementation; see [`docs/planning`](docs/planning). Application code lands here as the spec is finalized.
 
