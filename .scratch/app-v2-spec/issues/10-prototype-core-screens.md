@@ -1,11 +1,20 @@
-# ต้นแบบหน้าจอหลัก (onboarding + เควสรายวัน)
+# Design brief/พรอมต์ให้เพื่อนออกแบบ UI
 
-Type: prototype
+Type: task
 Status: open
 Blocked by: 06
 
 ## Question
 
-ทำ mockup ของ 2 flow สำคัญ — (1) onboarding: สมัคร → เลือกหัวข้อ → ได้เควสแรก และ (2) หน้าเควสรายวัน — เพื่อให้มีของจริงไว้ react ก่อนล็อกสเปก UI คำถามคือ "หน้าตา/จังหวะการใช้งานควรเป็นยังไง" ซึ่งคุยปากเปล่าไม่เห็นภาพ ผลลัพธ์เป็นไฟล์ HTML prototype แนบลิงก์ใน ticket รวมถึงตัดสินใจ: **mobile-only หรือ responsive รองรับ desktop ด้วย** (เจ้าของยกคำถามนี้ไว้ 12 ก.ค.)
+เจ้าของจะให้**เพื่อนออกแบบ UI ทั้งหมดใน Claude** (ผล ticket [สถาปัตยกรรมและ tech stack](07-tech-stack.md), 12 ก.ค. 2026) — งานของ ticket นี้คือผลิต **design brief + ตัวพรอมต์สำเร็จรูป** ที่เพื่อนเอาไปวางใน Claude แล้วเริ่มออกแบบได้ทันที โดย**ไม่ fix design** (ดีไซน์เดิม `ML Quest Master.html` ทิ้งแล้ว เปิดกว้าง 100%)
 
-**จุดตั้งต้น (asset จากเจ้าของ):** `../ML Quest Master.html` — mockup หน้า daily quest ที่เจ้าของทำไว้และชอบ (mobile layout, ฟอนต์ Geist, streak + phase progress + การ์ดเควสวันนี้ + ปุ่ม Complete/Skip + Quest Coach) ให้ใช้เป็น design direction ของแอพใหม่: prototype นี้ต่อยอดจากดีไซน์นั้น ไม่เริ่มจากศูนย์ — สิ่งที่ต้องปรับ: ถอดความเป็น ML ออก (รองรับทุกหัวข้อ), เพิ่ม flow onboarding ที่ยังไม่มี, และเช็คว่าองค์ประกอบไหนต้องเปลี่ยนตามผลฟีเจอร์ MVP (06)
+Brief ต้องครบพอที่เพื่อนไม่ต้องเดา requirement:
+
+1. **รายการหน้าจอครบทุกหน้า** (จากฟีเจอร์ MVP #06 + login/onboarding #04): login, onboarding 3 ขั้น, หน้าเควสรายวัน (checklist gating, XP, streak, phase progress, grade), แชทโค้ช (limit 10/วัน), leaderboard, ลิงก์ชวนเพื่อน, การ์ดแชร์ streak, หน้า /stats สาธารณะ (ถ้า ticket #14 สรุปว่าเอา)
+2. **ข้อมูล/state ที่แต่ละหน้าต้องแสดง** + edge states (โหลด, ว่าง, โควต้าแชทหมด, streak ขาด)
+3. **ข้อกำหนดตายตัวที่ดีไซน์ต้องเคารพ**: แบรนด์ ลุยเควส — โทนสนุก เป็นกันเองแบบไทย ๆ (#05), ภาษาไทย, **responsive: mobile-first + iPad/tablet**, PWA, ผลงานส่งกลับเป็น **React component (JSX + Tailwind)** ให้เข้ากับ stack (#07)
+4. **สิ่งที่เปิดกว้าง**: โทนสี, layout, typography, ธีมความเป็นเกม — เพื่อนตัดสินใจเอง
+
+ผลลัพธ์: ไฟล์ brief (markdown) + พรอมต์พร้อมส่ง แนบเป็น asset ใน ticket นี้ — เจ้าของอ่านทวนแล้วส่งให้เพื่อนเอง
+
+**ประวัติ:** เดิม ticket นี้เป็น prototype ("ต้นแบบหน้าจอหลัก" — ทำ HTML prototype ต่อยอด `ML Quest Master.html` + ตัดสินเรื่อง mobile-only/responsive) ถูกเขียนใหม่ 12 ก.ค. 2026 หลังเจ้าของตัดสินใจให้เพื่อนออกแบบและทิ้งดีไซน์เดิม; คำถาม responsive ถูกตอบแล้วใน #07 (ต้องรองรับ iPad → responsive)
