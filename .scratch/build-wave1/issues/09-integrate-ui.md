@@ -24,4 +24,22 @@ Blocked by: 02, 06
 
 **ยังขาด:** Leaderboard, ชวนเพื่อน, การ์ดแชร์ streak, /stats, app shell/navigation (6 หน้า) — รอเพื่อนส่งเพิ่ม
 
-**พร้อม wiring แล้ว** (backend ticket 06/07 ปิดหมด): `me`/`start-roadmap`/`quest-today`/`complete-quest`/`chat`/`generate-quest` — ต่อ auth/state/API เข้ากับ 4 หน้าที่มีได้เลยโดยไม่ต้องรอ 6 หน้าที่เหลือ ถ้าอยากเริ่ม wiring บางส่วนก่อน
+## Wiring 4 หน้าที่มี — เสร็จแล้ว (14 ก.ค. 2026 ค่ำ, commit `9f08d0f` push แล้ว)
+
+ลูปเต็มเดินได้จริงในเครื่อง ยืนยันด้วยเบราว์เซอร์จริง + บัญชี Google จริง + production Supabase/Gemini:
+ล็อกอิน Google → onboarding 3 ขั้น (curated ยิง `start-roadmap` ระหว่างหน้าคั่น) → เห็นเควสแรกทันที →
+ติ๊ก checklist ครบ → เคลม XP → ฉากฉลอง (+XP/streak) → แชทโค้ช (Gemini ตอบจริง, โควต้านับถูก) ✅
+
+สิ่งที่เพิ่ม: `AuthProvider` context (useAuth), `useProfile` hook (`activeRoadmapId`/`patchProfile`/`error`),
+`src/lib/topics.js` (map การ์ดเพื่อน→slug จริง), `src/pages/Coach.jsx` + route `/coach`, auth guard ทุก route
+
+บั๊กที่เจอ+แก้ระหว่าง verify + code review 8 มุม:
+1. **auth loop**: แต่ละหน้าเรียก `useAuth()` แยกกัน → ช่วง session=null ก่อน getSession resolve ทำ redirect ปิงปอง + ยิง `/me` ไม่หยุด → แก้เป็น context เดียวที่ App
+2. **ฉากฉลองโดนข้าม**: guard `profileLoading` เด้ง quest prop กลับ MOCK ชั่วคราวระหว่าง refetch → claimResult ถูกรีเซ็ต → แก้ guard + เปลี่ยน refetch เป็น `patchProfile` จาก response ของ complete-quest (ประหยัด invocation ด้วย)
+3. **ประวัติแชทเรียงผิด**: `asc+limit(50)` ได้เก่าสุด 50 แถว → โควต้าเพี้ยนเมื่อแชทเกิน 50 แถว → แก้เป็น desc+reverse (แพทเทิร์นเดียวกับ chat.js)
+4. **state "streak ขาด" ไม่มีทางโผล่**: backend รีเซ็ต streak แบบ lazy — เช็คจาก `last_quest_date` แทน `current_streak`
+5. **/me ล้มเหลวชั่วคราว = เด้งกลับ onboarding ผิด ๆ**: เพิ่ม `error` ใน useProfile + gate redirect + หน้า retry
+
+**Known follow-ups (ยอมรับได้ ยังไม่ทำ):** useProfile ยังเรียกแยกต่อหน้า (โหลดใหม่ทุก navigation — ถูกต้องแต่ไม่ประหยัดสุด ถ้าหน้าเยอะขึ้นค่อยยกเป็น context แบบ useAuth), GRADE_BANDS ใน Quest.jsx ต้อง sync มือกับ gameplay.js ถ้า threshold เปลี่ยน, preview toggle ของ component เพื่อนบางตัวเป็น dead path แล้ว (ไม่กระทบ production)
+
+**เหลือปิด ticket:** wiring 6 หน้าที่เหลือเมื่อเพื่อนส่ง component มา (backend/API พร้อมหมดแล้ว)
