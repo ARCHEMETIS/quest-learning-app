@@ -41,6 +41,9 @@ export default async (req) => {
     if (err.code === 'FREE_PLAN_ACTIVE_ROADMAP_LIMIT') {
       return json(409, { error: FREE_PLAN_LIMIT_MESSAGE, code: err.code });
     }
+    if (err.code === 'FREE_PLAN_SAVED_ROADMAP_LIMIT') {
+      return json(409, { error: err.message, code: err.code });
+    }
     return json(500, { error: String(err.message || err) });
   }
 };

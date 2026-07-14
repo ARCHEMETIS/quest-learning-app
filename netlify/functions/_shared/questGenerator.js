@@ -11,6 +11,10 @@ import {
 export const FREE_PLAN_LIMIT_MESSAGE =
   'แผนฟรีเรียนได้ทีละ 1 หัวข้อ — ปิด roadmap เดิมก่อน หรืออัปเกรด Premium เพื่อเรียนหลายหัวข้อพร้อมกัน';
 
+// เพดาน "หัวข้อที่เก็บไว้" ของแผนฟรี (รวม active — ไม่นับแถว failed) — สลับไปมาได้อิสระ progress ไม่หาย
+export const FREE_SAVED_ROADMAP_LIMIT = 3;
+export const FREE_SAVED_LIMIT_MESSAGE = `แผนฟรีเก็บได้สูงสุด ${FREE_SAVED_ROADMAP_LIMIT} หัวข้อ (progress ทุกหัวข้อยังอยู่ครบ สลับกลับมาเรียนต่อได้เสมอ) — อัปเกรด Premium เพื่อเริ่มหัวข้อใหม่ได้ไม่จำกัด`;
+
 function isActiveRoadmapLimitError(err) {
   return String(err?.message || '').includes('FREE_PLAN_ACTIVE_ROADMAP_LIMIT');
 }
@@ -65,7 +69,67 @@ async function seedDayOneFromStarter(admin, { roadmapId, topicId, level }) {
   return { quest, checklist };
 }
 
+// พักทุก roadmap ที่ active อยู่ของ user (progress เก็บไว้ครบ) — เรียกก่อน insert/activate ตัวใหม่เสมอ
+// เพื่อไม่ชน DB trigger enforce_active_roadmap_limit (ฟรี active ได้ทีละ 1)
+async function pauseActiveRoadmaps(admin, userId) {
+  const { error } = await admin
+    .from('roadmaps')
+    .update({ is_active: false })
+    .eq('user_id', userId)
+    .eq('is_active', true);
+  if (error) throw error;
+}
+
+// เพดานหัวข้อที่เก็บไว้ของแผนฟรี — เช็คก่อนสร้าง roadmap ใหม่เท่านั้น (สลับหัวข้อเดิมไม่โดนเช็ค)
+// ไม่นับแถว status='failed' (generate ไม่สำเร็จ ไม่ใช่หัวข้อที่เก็บไว้จริง — กัน retry กินเพดานฟรี)
+async function assertSavedCapacity(admin, userId) {
+  const { data: profile } = await admin.from('profiles').select('is_premium').eq('id', userId).maybeSingle();
+  if (profile?.is_premium) return;
+  const { count } = await admin
+    .from('roadmaps')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .neq('status', 'failed');
+  if ((count ?? 0) >= FREE_SAVED_ROADMAP_LIMIT) {
+    const err = new Error(FREE_SAVED_LIMIT_MESSAGE);
+    err.code = 'FREE_PLAN_SAVED_ROADMAP_LIMIT';
+    throw err;
+  }
+}
+
 export async function createCuratedRoadmap(admin, { userId, topicId, topicSlug, topicTitle, level, minutesPerDay }) {
+  // เคยมี roadmap หัวข้อนี้อยู่แล้ว (uniq_roadmap_user_topic) — สลับกลับมา active แทนการสร้างใหม่ (progress เดิมอยู่ครบ)
+  const { data: existing, error: existingErr } = await admin
+    .from('roadmaps')
+    .select('id, topic_id, topic_title, level, minutes_per_day, is_active, status, created_at')
+    .eq('user_id', userId)
+    .eq('topic_id', topicId)
+    .maybeSingle();
+  if (existingErr) throw existingErr;
+  if (existing) {
+    if (!existing.is_active) {
+      await pauseActiveRoadmaps(admin, userId);
+      const { error: actErr } = await admin.from('roadmaps').update({ is_active: true }).eq('id', existing.id);
+      if (actErr) throw actErr;
+      existing.is_active = true;
+    }
+    const { data: quest, error: questErr } = await admin
+      .from('daily_quests')
+      .select('id, roadmap_id, phase_id, day_number, title, description, content, xp_reward')
+      .eq('roadmap_id', existing.id)
+      .eq('day_number', 1)
+      .maybeSingle();
+    if (questErr) throw questErr;
+    const { data: checklist, error: checklistErr } = quest
+      ? await admin.from('quest_checklist_items').select('id, order_index, label, link_url').eq('quest_id', quest.id)
+      : { data: [], error: null };
+    if (checklistErr) throw checklistErr;
+    return { roadmap: existing, quest, checklist: checklist ?? [], reused: true };
+  }
+
+  await assertSavedCapacity(admin, userId);
+  await pauseActiveRoadmaps(admin, userId);
+
   const { data: roadmap, error: roadmapErr } = await admin
     .from('roadmaps')
     .insert({
@@ -86,28 +150,6 @@ export async function createCuratedRoadmap(admin, { userId, topicId, topicSlug, 
       const err = new Error(FREE_PLAN_LIMIT_MESSAGE);
       err.code = 'FREE_PLAN_ACTIVE_ROADMAP_LIMIT';
       throw err;
-    }
-    // cache ตลอดชีพ: user เคยมี roadmap หัวข้อนี้อยู่แล้ว (uniq_roadmap_user_topic) — คืนอันเดิม
-    if (roadmapErr.code === '23505') {
-      const { data: existing, error: existingErr } = await admin
-        .from('roadmaps')
-        .select('id, topic_id, topic_title, level, minutes_per_day, is_active, status, created_at')
-        .eq('user_id', userId)
-        .eq('topic_id', topicId)
-        .single();
-      if (existingErr) throw existingErr;
-      const { data: quest, error: questErr } = await admin
-        .from('daily_quests')
-        .select('id, roadmap_id, phase_id, day_number, title, description, content, xp_reward')
-        .eq('roadmap_id', existing.id)
-        .eq('day_number', 1)
-        .maybeSingle();
-      if (questErr) throw questErr;
-      const { data: checklist, error: checklistErr } = quest
-        ? await admin.from('quest_checklist_items').select('id, order_index, label, link_url').eq('quest_id', quest.id)
-        : { data: [], error: null };
-      if (checklistErr) throw checklistErr;
-      return { roadmap: existing, quest, checklist: checklist ?? [], reused: true };
     }
     throw roadmapErr;
   }
@@ -176,26 +218,10 @@ function buildFreeformRoadmapPrompt({ topicTitle, level, minutesPerDay }) {
  *  - Gemini หมด chain ทั้งหมด: { roadmap, quest: null, checklist: [], phase: null, failed: true }
  *    (roadmap ถูก insert เป็น status:'failed', is_active:false — ไม่กินโควตา active roadmap ของแผนฟรี ผู้ใช้เรียกซ้ำได้)
  */
-// ตรวจ limit ก่อนยิง Gemini เสมอ (ชั้นถูกของ 2 ชั้นตาม supabase-schema.md "การบังคับ active roadmap limit")
-// DB trigger enforce_active_roadmap_limit ยังเป็นด่านสุดท้ายกันหลุด แต่การเช็คนี้กันไม่ให้เสียโควต้า Gemini ฟรีไปฟรี ๆ
-// กับ request ที่รู้อยู่แล้วว่าจะถูกปฏิเสธ (เช่น retry ซ้ำ ๆ ตอน UI ยังไม่กันไว้ก่อนเรียก)
-async function assertCanCreateRoadmap(admin, userId) {
-  const { data: profile } = await admin.from('profiles').select('is_premium').eq('id', userId).maybeSingle();
-  if (profile?.is_premium) return;
-  const { count } = await admin
-    .from('roadmaps')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('is_active', true);
-  if ((count ?? 0) >= 1) {
-    const err = new Error(FREE_PLAN_LIMIT_MESSAGE);
-    err.code = 'FREE_PLAN_ACTIVE_ROADMAP_LIMIT';
-    throw err;
-  }
-}
-
 export async function createFreeformRoadmap(admin, { userId, topicTitle, level, minutesPerDay }) {
-  await assertCanCreateRoadmap(admin, userId);
+  // เช็คเพดานก่อนยิง Gemini เสมอ — กันไม่ให้เสียโควต้า Gemini ฟรีไปกับ request ที่รู้อยู่แล้วว่าจะถูกปฏิเสธ
+  // (ยังไม่พัก roadmap เดิมตรงนี้ — พักหลัง generate สำเร็จเท่านั้น กันเคส Gemini ล่มแล้วหัวข้อเดิมโดนพักทิ้งเปล่า ๆ)
+  await assertSavedCapacity(admin, userId);
 
   let generated = null;
   try {
@@ -239,6 +265,9 @@ export async function createFreeformRoadmap(admin, { userId, topicTitle, level, 
 
   const phasesOutline = normalizePhases(generated.phases);
   const checklist = sanitizeChecklistLinks(generated.first_quest?.checklist, topicTitle);
+
+  // generate สำเร็จแล้วเท่านั้นถึงพักหัวข้อเดิม — progress เก็บไว้ครบ สลับกลับได้ผ่าน /switch-roadmap
+  await pauseActiveRoadmaps(admin, userId);
 
   const { data: roadmap, error: roadmapErr } = await admin
     .from('roadmaps')

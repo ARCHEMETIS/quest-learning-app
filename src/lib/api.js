@@ -36,5 +36,7 @@ export const api = {
   questToday: (token, roadmapId) =>
     callFn('quest-today', { method: 'GET', token, query: roadmapId ? { roadmap_id: roadmapId } : undefined }),
   completeQuest: (payload, token) => callFn('complete-quest', { body: payload, token }),
+  // สลับหัวข้อที่ active (progress หัวข้อเดิมเก็บไว้) — UI เรียกใช้ตอนหน้าโปรไฟล์/nav มาถึง (ticket 09)
+  switchRoadmap: (roadmapId, token) => callFn('switch-roadmap', { body: { roadmap_id: roadmapId }, token }),
   chat: (payload, token) => callFn('chat', { body: payload, token }),
 };
