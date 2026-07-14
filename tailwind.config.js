@@ -2,7 +2,12 @@
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        heading: ['Mitr', 'sans-serif'],
+        body: ['"Noto Sans Thai"', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 };
