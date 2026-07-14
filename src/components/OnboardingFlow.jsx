@@ -143,6 +143,8 @@ const OptionRow = ({ option, selected, onSelect }) => (
   </button>
 );
 
+// onComplete({ topicId, topicTitle, level, minutesPerDay }) ต้องคืน Promise — topicId เป็น null แปลว่าหัวข้อพิมพ์อิสระ
+// ต่อ API จริงเสมอ (ticket #09): curated ยิงระหว่างหน้าคั่น (~0.9 วิ), พิมพ์อิสระยิงตอนเข้า generating
 export default function OnboardingFlow({ initialState = "step1", onComplete, showStateToggle = true }) {
   const [ui, setUi] = useState(initialState);
   const [topicId, setTopicId] = useState(null);
@@ -152,6 +154,7 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
   const [msgIndex, setMsgIndex] = useState(0);
   // หน้าคั่นโชว์ progress ระหว่างขั้น: { done: ขั้นที่เพิ่งจบ, next: state ถัดไป }
   const [transition, setTransition] = useState(null);
+  const [genError, setGenError] = useState(null);
   const ctaRef = useRef(null);
 
   const isCustomTopic = customTopic.trim().length > 0;
@@ -160,34 +163,63 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
   const canContinue =
     ui === "step1" ? topicId !== null || isCustomTopic : ui === "step2" ? levelId !== null : timeId !== null;
 
-  // หมุนข้อความบนหน้ารอ + จบแล้วพาไป done (mock ~16 วิ — ของจริงรอ API ตอบ)
+  // หมุนข้อความบนหน้ารอ + ยิง API จริงทันที (หัวข้อพิมพ์อิสระ) — เข้า done ตอน API ตอบสำเร็จจริง ไม่ใช่จับเวลาลวง
   useEffect(() => {
     if (ui !== "generating") return;
     setMsgIndex(0);
+    setGenError(null);
     // นับไม่หยุดเพื่อให้ท่ามาสคอตวนต่อ — ตัวข้อความค่อย clamp ตอน render
     const rotate = setInterval(() => setMsgIndex((i) => i + 1), 2800);
-    const finish = setTimeout(() => {
-      onComplete?.({ topic: topicLabel, level: levelId, minutesPerDay: timeId });
-      setUi("done");
-    }, 16000);
+    let cancelled = false;
+    (async () => {
+      try {
+        await onComplete?.({ topicId: null, topicTitle: topicLabel, level: levelId, minutesPerDay: timeId });
+        if (!cancelled) setUi("done");
+      } catch (err) {
+        if (!cancelled) {
+          setGenError(err?.message || "สร้างเควสไม่สำเร็จ ลองใหม่อีกครั้ง");
+          setUi("step3");
+        }
+      }
+    })();
     return () => {
+      cancelled = true;
       clearInterval(rotate);
-      clearTimeout(finish);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ui]);
 
-  // หน้าคั่นค้าง ~0.9 วิ แล้วค่อยเข้า state ถัดไป
+  // หน้าคั่นค้าง ~0.9 วิ แล้วค่อยเข้า state ถัดไป — หัวข้อ curated (next==="done") ยิง API จริงคู่ขนานกับเวลาที่ค้างหน้านี้
   useEffect(() => {
     if (!transition) return;
-    const t = setTimeout(() => {
+    let cancelled = false;
+    (async () => {
       if (transition.next === "done") {
-        // หัวข้อ curated มี starter quest สำเร็จรูป — เข้าเควสแรกทันที ไม่ต้องรอ generate
-        onComplete?.({ topic: topicLabel, level: levelId, minutesPerDay: timeId });
+        try {
+          await Promise.all([
+            onComplete?.({ topicId, topicTitle: topicLabel, level: levelId, minutesPerDay: timeId }),
+            new Promise((r) => setTimeout(r, 950)),
+          ]);
+        } catch (err) {
+          if (!cancelled) {
+            setGenError(err?.message || "เริ่มเควสไม่สำเร็จ ลองใหม่อีกครั้ง");
+            setTransition(null);
+            setUi("step3");
+          }
+          return;
+        }
+      } else {
+        await new Promise((r) => setTimeout(r, 950));
       }
-      setUi(transition.next);
-      setTransition(null);
-    }, 950);
-    return () => clearTimeout(t);
+      if (!cancelled) {
+        setUi(transition.next);
+        setTransition(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transition]);
 
   // เลือกครบแล้วเลื่อนหน้าลงไปหาปุ่มให้เอง (ถ้าปุ่มอยู่พ้นจอ)
@@ -374,6 +406,11 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
 
           {ui === "step3" && (
             <>
+              {genError && (
+                <div className="mb-4 flex items-center gap-1.5 self-center rounded-full bg-red-100 px-3 py-1.5 text-[11px] text-red-600">
+                  ⚠️ {genError}
+                </div>
+              )}
               <div className="flex flex-col items-center text-center">
                 <h1 className="font-heading text-xl font-bold">ว่างให้ลุยวันละกี่นาที?</h1>
                 <p className="mt-1 text-xs text-[#9D5C7C]">เลือกตามจริง — น้อยแต่สม่ำเสมอ ชนะขาด</p>

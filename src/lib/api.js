@@ -1,14 +1,17 @@
 // Helper เรียก Netlify Functions — frontend เรียก /.netlify/functions/* ตรง ๆ (ดู deploy-plan.md sec.3)
 const BASE = '/.netlify/functions';
 
-async function callFn(name, body, token) {
-  const res = await fetch(`${BASE}/${name}`, {
-    method: 'POST',
+async function callFn(name, { method = 'POST', body, token, query } = {}) {
+  const qs = query
+    ? '?' + new URLSearchParams(Object.entries(query).filter(([, v]) => v != null)).toString()
+    : '';
+  const res = await fetch(`${BASE}/${name}${qs}`, {
+    method,
     headers: {
-      'Content-Type': 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(body ?? {}),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -26,8 +29,12 @@ async function callFn(name, body, token) {
   return res.json();
 }
 
-// ลอจิกจริงเสียบใน ticket #06/#07 — ตอนนี้เป็นแค่ทางเข้า
 export const api = {
-  chat: (payload, token) => callFn('chat', payload, token),
-  generateQuest: (payload, token) => callFn('generate-quest', payload, token),
+  me: (token) => callFn('me', { method: 'GET', token }),
+  startRoadmap: (payload, token) => callFn('start-roadmap', { body: payload, token }),
+  generateQuest: (payload, token) => callFn('generate-quest', { body: payload, token }),
+  questToday: (token, roadmapId) =>
+    callFn('quest-today', { method: 'GET', token, query: roadmapId ? { roadmap_id: roadmapId } : undefined }),
+  completeQuest: (payload, token) => callFn('complete-quest', { body: payload, token }),
+  chat: (payload, token) => callFn('chat', { body: payload, token }),
 };

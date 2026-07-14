@@ -1,90 +1,16 @@
-// หน้าแชทโค้ช AI ของลุยเควส (ticket #5 — design-brief section 3.6) — mock data ด้านล่าง ฝั่งโค้ดต่อ API จริงเองภายหลัง
-// states: empty (ยังไม่เคยคุย) | active (คุยอยู่ พิมพ์/ส่งได้จริงในนี้) | typing (โค้ชกำลังพิมพ์ — สแนปช็อตรีวิว)
-//         | quota (โควต้าหมด 0/10) | failed (ส่งไม่สำเร็จ — สแนปช็อตรีวิว)
-// กติกาโควต้า: นับตอนผู้ใช้ "ส่งสำเร็จ" เท่านั้น ครบ 10 แล้วช่องพิมพ์ disable ทันที + บอกเวลารีเซ็ต
+// หน้าแชทโค้ช AI ของลุยเควส (ticket #5 — design-brief section 3.6) — ต่อ API จริงแล้ว (ticket #09)
+// กติกาโควต้า: นับตอนผู้ใช้ "ส่งสำเร็จ" เท่านั้น ครบแล้วช่องพิมพ์ disable ทันที + บอกเวลารีเซ็ต
+// props จริงส่งมาจาก src/pages/Coach.jsx — onSend ต้องคืน { ok, reply?, remaining?, limited?, resetAt? }
 
 import { useEffect, useRef, useState } from "react";
 import GhostMascot from "./GhostMascot";
 
-const QUOTA_TOTAL = 10;
+const DEFAULT_QUOTA_TOTAL = 10;
 
-const MOCK = {
-  topic: "Python",
-  userInitial: "พ",
-  suggestions: [
-    "ตัวแปรกับค่าคงที่ต่างกันยังไง",
-    "โค้ดฉัน error ตรงนี้ แก้ยังไงดี",
-    "ขอตัวอย่างโจทย์ฝึกเพิ่ม",
-  ],
-  // ชุดคำตอบโค้ชแบบวนไว้ demo การพิมพ์จริงในหน้านี้ (ของจริงยิง API)
-  replies: [
-    "ตัวแปร (variable) เปลี่ยนค่าได้ระหว่างรันโปรแกรม ส่วนค่าคงที่ตั้งไว้แล้วไม่ควรเปลี่ยน ใน Python ไม่มีคีย์เวิร์ด const จริง ๆ แต่นิยมตั้งชื่อตัวพิมพ์ใหญ่ทั้งหมดเพื่อสื่อว่าไม่ควรแก้ เช่น MAX_SCORE = 100",
-    "ลองแปะโค้ดกับ error message ที่เจอมาให้ดูเต็ม ๆ ได้เลย จะได้ชี้จุดถูกบรรทัด",
-    "งั้นลองข้อนี้ดู: เขียนฟังก์ชันรับรายชื่อแล้วคืนค่าเฉพาะชื่อที่ยาวกว่า 5 ตัวอักษร ลองทำแล้วส่งโค้ดมาดูได้เลย",
-  ],
-  activeMessages: [
-    { role: "coach", text: "สวัสดี! มีอะไรให้โค้ชช่วยเรื่องเควส Python วันนี้ไหม", time: "09:14" },
-    { role: "user", text: "ตัวแปรกับค่าคงที่ต่างกันยังไงครับ", time: "09:15" },
-    {
-      role: "coach",
-      text: "ตัวแปร (variable) เปลี่ยนค่าได้ระหว่างรันโปรแกรม ส่วนค่าคงที่ตั้งไว้แล้วไม่ควรเปลี่ยน ใน Python ไม่มีคีย์เวิร์ด const จริง ๆ แต่นิยมตั้งชื่อตัวพิมพ์ใหญ่ทั้งหมดเพื่อสื่อว่าไม่ควรแก้ เช่น MAX_SCORE = 100",
-      time: "09:15",
-    },
-    { role: "user", text: "แล้ว type ของตัวแปรใน Python ต้องประกาศเองมั้ยครับ", time: "09:16" },
-    {
-      role: "coach",
-      text: "ไม่ต้องเลย Python เป็นแบบ dynamically typed ล่ามเดาชนิดจากค่าที่ใส่ให้อัตโนมัติ เช่น x = 5 ได้ int ทันที ถ้าอยากรู้ชนิดของตัวแปรใช้ type(x) เช็คได้ตลอด",
-      time: "09:16",
-    },
-    { role: "user", text: "int กับ float ต่างกันตรงไหนครับ", time: "09:18" },
-    {
-      role: "coach",
-      text: "int คือเลขจำนวนเต็ม ไม่มีจุดทศนิยม ส่วน float คือเลขทศนิยม เช่น 5 เป็น int แต่ 5.0 เป็น float ผสมสองแบบในสูตรคำนวณ Python จะแปลงผลลัพธ์เป็น float ให้อัตโนมัติ",
-      time: "09:18",
-    },
-    { role: "user", text: "ถ้าอยากเปลี่ยน int เป็น string ทำไงครับ", time: "09:20" },
-    {
-      role: "coach",
-      text: "ใช้ str() ห่อค่านั้นได้เลย เช่น str(5) จะได้ \"5\" แบบ string ตรงข้ามกันใช้ int() แปลง string เป็นเลขได้เหมือนกัน ถ้าข้อความนั้นแปลงเป็นเลขได้จริง",
-      time: "09:20",
-    },
-    { role: "user", text: "งั้น bool นับเป็นตัวเลขมั้ยครับ", time: "09:22" },
-    {
-      role: "coach",
-      text: "นับ! ใน Python True เท่ากับ 1 และ False เท่ากับ 0 เวลาบวกเลขกับ boolean ได้จริง ๆ เช่น True + True ได้ 2",
-      time: "09:22",
-    },
-    { role: "user", text: "โห ไม่เคยรู้เลย งั้นสรุปคือดู type() เช็คชนิดได้เสมอใช่มั้ย", time: "09:24" },
-    {
-      role: "coach",
-      text: "ใช่เลย! พิมพ์ type(ตัวแปร) เช็คได้ตลอด เวลาโค้ด error เรื่องชนิดข้อมูลก็เริ่มเช็คตรงนี้ก่อนได้เลย",
-      time: "09:24",
-    },
-    { role: "user", text: "เข้าใจละ ขอบคุณครับ ไปทำเควสต่อดีกว่า", time: "09:25" },
-    { role: "coach", text: "เยี่ยมเลย ลุยเควสต่อได้เลย มีอะไรสงสัยกลับมาถามได้ตลอดนะ", time: "09:25" },
-  ],
-  typingMessages: [
-    { role: "coach", text: "สวัสดี! มีอะไรให้โค้ชช่วยเรื่องเควส Python วันนี้ไหม", time: "09:14" },
-    { role: "user", text: "ทำไมลิสต์กับทูเพิลถึงมีสองแบบ ใช้ต่างกันตรงไหน", time: "09:17" },
-  ],
-  quotaMessages: [
-    { role: "coach", text: "สวัสดี! มีอะไรให้โค้ชช่วยเรื่องเควส Python วันนี้ไหม", time: "08:40" },
-    { role: "user", text: "loop for กับ while เลือกใช้ตอนไหนดี", time: "08:41" },
-    { role: "coach", text: "for ใช้เมื่อรู้จำนวนรอบ/มี sequence ให้วน ส่วน while ใช้เมื่อวนจนกว่าเงื่อนไขจะเป็นเท็จ ยังไม่รู้จำนวนรอบล่วงหน้า", time: "08:41" },
-    { role: "user", text: "เข้าใจละ ขอบคุณครับ วันนี้ถามจนครบโควต้าเลย 😅", time: "12:02" },
-  ],
-  failedMessages: [
-    { role: "coach", text: "สวัสดี! มีอะไรให้โค้ชช่วยเรื่องเควส Python วันนี้ไหม", time: "09:14" },
-    { role: "user", text: "ขอตัวอย่างการใช้ dictionary หน่อยครับ", time: "09:18", failed: true },
-  ],
-};
-
-const PREVIEW_STATES = [
-  { id: "empty", label: "ว่าง" },
-  { id: "active", label: "กำลังคุย" },
-  { id: "typing", label: "โค้ชพิมพ์อยู่" },
-  { id: "quota", label: "โควต้าหมด" },
-  { id: "failed", label: "ส่งไม่สำเร็จ" },
+const MOCK_SUGGESTIONS = [
+  "ตัวแปรกับค่าคงที่ต่างกันยังไง",
+  "โค้ดฉัน error ตรงนี้ แก้ยังไงดี",
+  "ขอตัวอย่างโจทย์ฝึกเพิ่ม",
 ];
 
 // path จาก Heroicons 24/outline (assets/heroicons — MIT)
@@ -134,72 +60,80 @@ const CoachAvatar = ({ size = 28 }) => {
   );
 };
 
-const PRESETS = {
-  empty: { messages: [], quotaUsed: 0, typing: false },
-  active: { messages: MOCK.activeMessages, quotaUsed: 7, typing: false },
-  typing: { messages: MOCK.typingMessages, quotaUsed: 3, typing: true },
-  quota: { messages: MOCK.quotaMessages, quotaUsed: QUOTA_TOTAL, typing: false },
-  failed: { messages: MOCK.failedMessages, quotaUsed: 0, typing: false },
-};
+function nowThaiTime() {
+  return new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
 
-export default function CoachChatPage({ initialState = "active", onBack, onGoToQuest, showStateToggle = true }) {
-  const [ui, setUi] = useState(initialState);
-  const [messages, setMessages] = useState(PRESETS[initialState].messages);
-  const [quotaUsed, setQuotaUsed] = useState(PRESETS[initialState].quotaUsed);
-  const [typing, setTyping] = useState(PRESETS[initialState].typing);
+export default function CoachChatPage({
+  onBack,
+  onGoToQuest,
+  showStateToggle = false,
+  topicTitle = "หัวข้อของคุณ",
+  initialMessages = [],
+  initialQuotaUsed = 0,
+  quotaTotal = DEFAULT_QUOTA_TOTAL,
+  onSend,
+}) {
+  const [messages, setMessages] = useState(initialMessages);
+  const [quotaUsed, setQuotaUsed] = useState(initialQuotaUsed);
+  const [sending, setSending] = useState(false);
   const [input, setInput] = useState("");
-  const replyTimer = useRef(null);
-  const replyCursor = useRef(0);
   const bottomRef = useRef(null);
 
-  const quotaLeft = QUOTA_TOTAL - quotaUsed;
+  const quotaLeft = quotaTotal - quotaUsed;
   const quotaExhausted = quotaLeft <= 0;
-  const canSend = !quotaExhausted && !typing && input.trim().length > 0;
-
-  // เปลี่ยน state preview แล้วโหลด mock ชุดใหม่ + เคลียร์ timer/ลำดับคำตอบค้าง
-  useEffect(() => {
-    const preset = PRESETS[ui];
-    setMessages(preset.messages);
-    setQuotaUsed(preset.quotaUsed);
-    setTyping(preset.typing);
-    setInput("");
-    replyCursor.current = 0;
-    clearTimeout(replyTimer.current);
-    return () => clearTimeout(replyTimer.current);
-  }, [ui]);
+  const canSend = !quotaExhausted && !sending && input.trim().length > 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, typing]);
+  }, [messages, sending]);
 
-  // ใช้ร่วมกันทั้งส่งข้อความใหม่และลองส่งใหม่ — กันไทม์เมอร์ค้างซ้อนกันด้วย clearTimeout ก่อนตั้งใหม่เสมอ
-  // หักโควต้าตอนตอบสำเร็จเท่านั้น (ตอนพังไม่นับ ตามโน้ตใน luiquest-style.md)
-  const scheduleReply = () => {
-    clearTimeout(replyTimer.current);
-    setTyping(true);
-    replyTimer.current = setTimeout(() => {
-      const reply = MOCK.replies[replyCursor.current % MOCK.replies.length];
-      replyCursor.current += 1;
-      const time = new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-      setMessages((m) => [...m, { role: "coach", text: reply, time }]);
-      setTyping(false);
-      setQuotaUsed((q) => q + 1);
-    }, 1300);
+  // ยิงข้อความจริงผ่าน onSend (parent เรียก api.chat) — หักโควต้าตอนตอบสำเร็จเท่านั้น ตามกติกาบนสุดของไฟล์
+  const dispatch = async (text, { onSettled }) => {
+    setSending(true);
+    try {
+      const result = await onSend?.(text);
+      if (result?.limited) {
+        setQuotaUsed(quotaTotal);
+        onSettled({ failed: false, limited: true });
+      } else if (result?.ok) {
+        setMessages((m) => [...m, { role: "coach", text: result.reply, time: nowThaiTime() }]);
+        // ปกติเซิร์ฟเวอร์ส่ง remaining กลับมาเป๊ะ ๆ — เผื่อกรณี degraded ที่ไม่มีค่านี้ นับเพิ่มเองไปก่อน 1 (เซิร์ฟเวอร์นับข้อความ user เสมอ)
+        setQuotaUsed((q) => (typeof result.remaining === "number" ? quotaTotal - result.remaining : q + 1));
+        onSettled({ failed: false, limited: false });
+      } else {
+        onSettled({ failed: true, limited: false });
+      }
+    } catch {
+      onSettled({ failed: true, limited: false });
+    } finally {
+      setSending(false);
+    }
   };
 
   const send = (text) => {
     const trimmed = text.trim();
-    if (!trimmed || quotaExhausted || typing) return;
-    const time = new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-    setMessages((m) => [...m, { role: "user", text: trimmed, time }]);
+    if (!trimmed || quotaExhausted || sending) return;
+    setMessages((m) => [...m, { role: "user", text: trimmed, time: nowThaiTime() }]);
     setInput("");
-    scheduleReply();
+    dispatch(trimmed, {
+      onSettled: ({ failed }) => {
+        if (failed) {
+          setMessages((m) => m.map((msg, i) => (i === m.length - 1 ? { ...msg, failed: true } : msg)));
+        }
+      },
+    });
   };
 
   const retryFailed = (i) => {
-    if (typing || quotaExhausted) return;
+    if (sending || quotaExhausted) return;
+    const text = messages[i].text;
     setMessages((m) => m.map((msg, idx) => (idx === i ? { ...msg, failed: false } : msg)));
-    scheduleReply();
+    dispatch(text, {
+      onSettled: ({ failed }) => {
+        if (failed) setMessages((m) => m.map((msg, idx) => (idx === i ? { ...msg, failed: true } : msg)));
+      },
+    });
   };
 
   const handleSubmit = (e) => {
@@ -225,25 +159,6 @@ export default function CoachChatPage({ initialState = "active", onBack, onGoToQ
         @keyframes coach-dot { 0%,60%,100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
 
-      {/* toggle สำหรับ preview แต่ละ state (ปิดได้ด้วย prop ตอนต่อ flow จริง) */}
-      {showStateToggle && (
-        <div className="absolute inset-x-0 top-2 z-20 flex flex-wrap items-center justify-center gap-1 px-3">
-          {PREVIEW_STATES.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setUi(s.id)}
-              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] transition ${
-                ui === s.id
-                  ? "bg-[#8B5CF6] text-white"
-                  : "border border-[#FBCFE8] bg-white/80 text-[#9D5C7C] hover:border-[#8B5CF6]/50 hover:text-[#8B5CF6]"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className={`mx-auto flex w-full min-h-0 max-w-md flex-1 flex-col md:max-w-xl ${showStateToggle ? "pt-14" : "pt-2"}`}>
         {/* header: ย้อนกลับ + ชื่อโค้ช + ตัวนับโควต้า (เห็นชัดตลอดตามบรีฟ) */}
         <div className="flex items-center gap-3 border-b border-[#FBCFE8] px-4 pb-3">
@@ -257,7 +172,7 @@ export default function CoachChatPage({ initialState = "active", onBack, onGoToQ
           <CoachAvatar size={36} />
           <div className="min-w-0 flex-1">
             <h1 className="font-heading text-[15px] font-bold leading-tight">โค้ชเอไอ</h1>
-            <p className="truncate text-[10px] text-[#9D5C7C]">ถามได้ทุกเรื่องของเควส {MOCK.topic}</p>
+            <p className="truncate text-[10px] text-[#9D5C7C]">ถามได้ทุกเรื่องของเควส {topicTitle}</p>
           </div>
           <span
             className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold ${
@@ -268,7 +183,7 @@ export default function CoachChatPage({ initialState = "active", onBack, onGoToQ
                   : "border border-[#FBCFE8] bg-white/80 text-[#9D5C7C]"
             }`}
           >
-            เหลือ {Math.max(quotaLeft, 0)}/{QUOTA_TOTAL} ข้อความวันนี้
+            เหลือ {Math.max(quotaLeft, 0)}/{quotaTotal} ข้อความวันนี้
           </span>
         </div>
 
@@ -280,10 +195,10 @@ export default function CoachChatPage({ initialState = "active", onBack, onGoToQ
               <GhostMascot mood="idle" className="mb-4 scale-75" />
               <h2 className="font-heading text-lg font-bold">มีอะไรให้โค้ชช่วยไหม 👋</h2>
               <p className="mt-1.5 text-xs leading-relaxed text-[#9D5C7C]">
-                ถามได้เลยเรื่องเควส {MOCK.topic} วันนี้ ไม่เข้าใจตรงไหน โค้ชอธิบายให้ทันที
+                ถามได้เลยเรื่องเควส {topicTitle} วันนี้ ไม่เข้าใจตรงไหน โค้ชอธิบายให้ทันที
               </p>
               <div className="mt-5 flex w-full max-w-[300px] flex-col gap-2">
-                {MOCK.suggestions.map((q, i) => (
+                {MOCK_SUGGESTIONS.map((q, i) => (
                   <button
                     key={i}
                     onClick={() => send(q)}
@@ -335,7 +250,7 @@ export default function CoachChatPage({ initialState = "active", onBack, onGoToQ
               ))}
 
               {/* โค้ชกำลังพิมพ์ — จุดสามเม็ดกระเพื่อม */}
-              {typing && (
+              {sending && (
                 <div className="flex items-end gap-2" style={{ animation: "coach-in .25s ease-out" }}>
                   <CoachAvatar />
                   <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm border-2 border-[#FBCFE8] bg-white/90 px-4 py-3">
@@ -377,8 +292,8 @@ export default function CoachChatPage({ initialState = "active", onBack, onGoToQ
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={quotaExhausted || typing}
-            placeholder={quotaExhausted ? "โควต้าหมดสำหรับวันนี้" : typing ? "รอโค้ชตอบแป๊บนึง..." : "พิมพ์คำถามถึงโค้ช..."}
+            disabled={quotaExhausted || sending}
+            placeholder={quotaExhausted ? "โควต้าหมดสำหรับวันนี้" : sending ? "รอโค้ชตอบแป๊บนึง..." : "พิมพ์คำถามถึงโค้ช..."}
             className="flex-1 rounded-full border-2 border-[#FBCFE8] bg-white/80 px-4 py-2.5 text-[13px] text-[#831843] outline-none transition placeholder:text-[#9D5C7C]/70 focus:border-[#8B5CF6] disabled:opacity-60"
           />
           <button

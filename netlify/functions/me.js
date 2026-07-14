@@ -13,7 +13,7 @@ export default async (req) => {
   const { data: profile, error: profileErr } = await admin
     .from('profiles')
     .select(
-      'id, display_name, avatar_url, total_xp, current_streak, longest_streak, grade, referral_code, is_premium, premium_until, leaderboard_opt_out, created_at'
+      'id, display_name, avatar_url, total_xp, current_streak, longest_streak, last_quest_date, grade, referral_code, is_premium, premium_until, leaderboard_opt_out, created_at'
     )
     .eq('id', user.id)
     .single();

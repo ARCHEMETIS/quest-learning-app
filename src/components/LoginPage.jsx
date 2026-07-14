@@ -42,9 +42,11 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export default function LoginPage({ initialState = "normal", showStateToggle = true }) {
+// status/onLogin เสียบ auth จริง (ticket #09) — ปล่อยว่างไว้ ui ก็ยังขับด้วย toggle preview เดิมได้ตามปกติ
+export default function LoginPage({ initialState = "normal", showStateToggle = true, status, onLogin }) {
   const [ui, setUi] = useState(initialState);
-  const busy = ui === "loading" || ui === "success";
+  const effectiveUi = status ?? ui;
+  const busy = effectiveUi === "loading" || effectiveUi === "success";
 
   return (
     <div
@@ -79,7 +81,7 @@ export default function LoginPage({ initialState = "normal", showStateToggle = t
       )}
 
       {/* banner เพื่อนชวน — การ์ดลอยหัวจอ */}
-      {ui === "invite" && (
+      {effectiveUi === "invite" && (
         <div className="absolute inset-x-5 top-12 z-10 flex items-center gap-3 rounded-2xl border border-[#FBCFE8] bg-white/90 px-3.5 py-2.5 shadow-[0_6px_18px_rgba(139,92,246,.12)] backdrop-blur-sm">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-400 font-heading text-sm font-bold text-white">
             {MOCK.inviterName.charAt(0)}
@@ -98,7 +100,7 @@ export default function LoginPage({ initialState = "normal", showStateToggle = t
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center px-8 pb-8 pt-28 md:max-w-lg">
         {/* กลุ่มแบรนด์: mascot → โลโก้ → tagline อ่านเป็นก้อนเดียว */}
         <div className="my-auto flex flex-col items-center">
-          <GhostMascot mood={MASCOT_MOOD[ui]} className="mb-6 scale-75" />
+          <GhostMascot mood={MASCOT_MOOD[effectiveUi]} className="mb-6 scale-75" />
 
           <div className="flex items-center gap-3">
             <LuiQuestFavicon />
@@ -114,7 +116,7 @@ export default function LoginPage({ initialState = "normal", showStateToggle = t
 
         {/* action — CTA เดียว ชิดขอบล่างจอ */}
         <div className="mt-auto flex w-full max-w-[300px] flex-col items-center gap-2.5">
-          {ui === "error" && (
+          {effectiveUi === "error" && (
             <div className="flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1.5 text-[11px] text-red-600">
               ⚠️ เข้าสู่ระบบไม่สำเร็จ — ลองใหม่อีกครั้งนะ
             </div>
@@ -122,18 +124,19 @@ export default function LoginPage({ initialState = "normal", showStateToggle = t
 
           <button
             disabled={busy}
+            onClick={() => onLogin?.()}
             className={`flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-2.5 font-heading text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,.30)] transition active:translate-y-px ${
               busy ? "opacity-75" : ""
             }`}
           >
-            {ui === "loading" ? (
+            {effectiveUi === "loading" ? (
               <span className="h-4 w-4 animate-spin rounded-full border-[2.5px] border-white/40 border-t-white" />
-            ) : ui === "success" ? null : (
+            ) : effectiveUi === "success" ? null : (
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white">
                 <GoogleIcon />
               </span>
             )}
-            {BUTTON_LABEL[ui]}
+            {BUTTON_LABEL[effectiveUi]}
           </button>
         </div>
       </main>

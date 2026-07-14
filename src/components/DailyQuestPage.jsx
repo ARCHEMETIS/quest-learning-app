@@ -1,7 +1,8 @@
-// หน้าเควสรายวันของลุยเควส (ticket #4 — design-brief section 3.5) — mock data ด้านล่าง ฝั่งโค้ดต่อ API จริงเองภายหลัง
+// หน้าเควสรายวันของลุยเควส (ticket #4 — design-brief section 3.5) — ต่อ state/API จริงแล้ว (ticket #09)
 // states: loading (skeleton) | ready (เควสวันนี้) | notready (generate ไม่ทัน + retry)
 //         | done (ทำเสร็จแล้ว celebration) | broken (streak ขาด — โทนปลอบ) | day1 (ผู้ใช้ใหม่ เลขเป็น 0)
 // กติกา gating: ต้องติ๊ก checklist ครบทุกข้อ ปุ่มเคลม XP ถึงโผล่ (แบบเดียวกับปุ่มลุยต่อใน OnboardingFlow)
+// props จริงส่งมาจาก src/pages/Quest.jsx — ค่า MOCK เหลือไว้เป็น default เผื่อ preview ไม่ส่ง props (showStateToggle)
 
 import { useEffect, useRef, useState } from "react";
 import GhostMascot from "./GhostMascot";
@@ -15,17 +16,13 @@ const MOCK = {
     desc: "ทำความรู้จักตัวแปร, string, number, boolean แล้วลองประกาศเองให้คล่องมือ — จบวันนี้อ่านโค้ดคนอื่นรู้เรื่องขึ้นเยอะ",
     minutes: 30,
     xp: 50,
-    resources: [
-      { label: "คลิปสอน (12 นาที)", icon: "play", url: "#" },
-      { label: "บทเรียนตัวแปร Python", icon: "book", url: "#" },
-    ],
-    checklist: [
-      "ดูคลิปตัวแปร Python ให้จบ",
-      "ประกาศตัวแปรเอง 5 แบบใน REPL",
-      "ลองใช้ type() เช็คค่าที่สร้าง",
-      "ทำ mini quiz ท้ายบทให้ผ่าน",
-    ],
   },
+  checklist: [
+    { id: "m1", label: "ดูคลิปตัวแปร Python ให้จบ", link_url: null },
+    { id: "m2", label: "ประกาศตัวแปรเอง 5 แบบใน REPL", link_url: null },
+    { id: "m3", label: "ลองใช้ type() เช็คค่าที่สร้าง", link_url: null },
+    { id: "m4", label: "ทำ mini quiz ท้ายบทให้ผ่าน", link_url: null },
+  ],
   stats: {
     xp: 1250,
     streak: 6,
@@ -104,8 +101,8 @@ const RANK_COLOR = { S: "text-[#FBBF24]", A: "text-emerald-600", B: "text-[#8B5C
 const RankBar = ({ stats }) => (
   <div className="mt-3 rounded-2xl border border-[#FBCFE8] bg-white/70 px-3.5 py-2.5">
     <div className="flex items-center justify-between text-[10px] text-[#9D5C7C]">
-      <span>EXP สู่แรงค์ถัดไป</span>
-      <span className="font-bold">{stats.rankXp} XP</span>
+      <span>streak สู่แรงค์ถัดไป</span>
+      <span className="font-bold">{stats.rankXp} วัน</span>
     </div>
     <div className="mt-1.5 flex items-center gap-2.5">
       <span className={`font-heading text-lg font-bold ${RANK_COLOR[stats.rank?.charAt(0)] || "text-[#9D5C7C]"}`}>
@@ -170,37 +167,61 @@ const Skeleton = ({ className = "" }) => (
   <div className={`animate-pulse rounded-2xl bg-[#FBCFE8]/50 ${className}`} />
 );
 
-export default function DailyQuestPage({ initialState = "ready", onOpenCoach, onShareStreak, onInvite, showStateToggle = true }) {
+export default function DailyQuestPage({
+  initialState = "ready",
+  onOpenCoach,
+  onShareStreak,
+  onInvite,
+  showStateToggle = true,
+  status,
+  dateLabel = MOCK.dateLabel,
+  topicTitle = MOCK.topic,
+  userInitial = MOCK.userInitial,
+  quest = MOCK.quest,
+  checklistItems = MOCK.checklist,
+  stats,
+  onRetry,
+  onClaim,
+  claiming = false,
+  claimError = null,
+}) {
   const [ui, setUi] = useState(initialState);
   const [checked, setChecked] = useState([]);
+  const [claimResult, setClaimResult] = useState(null);
   const ctaRef = useRef(null);
-  const retryTimer = useRef(null);
 
-  const isQuestState = QUEST_STATES.includes(ui);
-  const allChecked = checked.length === MOCK.quest.checklist.length;
-  const stats =
-    ui === "day1" ? MOCK.day1Stats : ui === "broken" ? { ...MOCK.stats, streak: 0 } : MOCK.stats;
+  const effectiveUi = claimResult ? claimResult.kind : status ?? ui;
+  const isQuestState = QUEST_STATES.includes(effectiveUi);
+  const allChecked = checklistItems.length > 0 && checked.length === checklistItems.length;
+  const effectiveStats =
+    stats ?? (effectiveUi === "day1" ? MOCK.day1Stats : effectiveUi === "broken" ? { ...MOCK.stats, streak: 0 } : MOCK.stats);
+  const effectiveDone = claimResult?.kind === "done" ? claimResult : MOCK.done;
+  const effectiveRankUp = claimResult?.kind === "rankup" ? claimResult : MOCK.rankUp;
+  // ลิงก์แหล่งเรียนที่แนบมากับ checklist — โชว์เป็นชิปลิงก์ด่วนเหนือ checklist (คนละก้อนกับตัวเช็คลิสต์เอง)
+  const resources = checklistItems.filter((item) => item.link_url);
 
-  // เปลี่ยน state แล้วล้าง checklist + timer retry ทิ้ง
+  // เปลี่ยน quest (วันใหม่) แล้วล้าง checklist + ผลเคลมของเควสก่อนหน้าทิ้ง
   useEffect(() => {
     setChecked([]);
-    return () => clearTimeout(retryTimer.current);
-  }, [ui]);
+    setClaimResult(null);
+  }, [quest?.id]);
 
   // ติ๊กครบแล้วเลื่อนหน้าลงไปหาปุ่มเคลมให้เอง (pattern เดียวกับ OnboardingFlow)
   useEffect(() => {
     if (isQuestState && allChecked) {
       ctaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-  }, [allChecked, ui]);
+  }, [allChecked, isQuestState]);
 
-  const toggleItem = (i) =>
-    setChecked((c) => (c.includes(i) ? c.filter((x) => x !== i) : [...c, i]));
+  const toggleItem = (id) =>
+    setChecked((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
 
-  // mock retry: โหลดแป๊บนึงแล้วเควสมา (ของจริงยิง API ใหม่)
-  const retry = () => {
-    setUi("loading");
-    retryTimer.current = setTimeout(() => setUi("ready"), 1400);
+  const handleClaim = async () => {
+    if (claiming) return;
+    const result = await onClaim?.(checked);
+    if (result?.ok) {
+      setClaimResult({ kind: result.rankUp ? "rankup" : "done", ...result });
+    }
   };
 
   return (
@@ -242,7 +263,7 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
         </div>
       )}
 
-      {ui === "loading" && (
+      {effectiveUi === "loading" && (
         /* ---------- skeleton — ปกติแวบเดียวเพราะเควส pre-generate ---------- */
         <main className={`mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-6 pb-8 md:max-w-xl ${showStateToggle ? "pt-14" : "pt-6"}`}>
           <div className="flex items-center justify-between">
@@ -260,7 +281,7 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
         </main>
       )}
 
-      {ui === "notready" && (
+      {effectiveUi === "notready" && (
         /* ---------- เควสยังไม่พร้อม — อธิบายตรง ๆ + ปุ่มลองใหม่ ไม่ใช่จอขาว ---------- */
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-8 pb-16 text-center md:max-w-lg">
           <GhostMascot mood="sad" className="mb-6 scale-90" />
@@ -271,7 +292,7 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
             กดลองใหม่ได้เลย ปกติไม่เกินครึ่งนาทีก็มา
           </p>
           <button
-            onClick={retry}
+            onClick={() => onRetry?.()}
             className="mt-6 w-full max-w-[260px] rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-2.5 font-heading text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,.30)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(139,92,246,.42)] hover:brightness-105 active:translate-y-px"
           >
             ลองใหม่อีกครั้ง
@@ -279,7 +300,7 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
         </main>
       )}
 
-      {ui === "rankup" && (
+      {effectiveUi === "rankup" && (
         /* ---------- ฉากแรงค์อัพ — แต้มถึงตอนเคลม XP: ตัวเก่าหลบ ตัวใหม่กระแทกเข้า ---------- */
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-8 pb-12 text-center md:max-w-lg">
           <GhostMascot mood="rankup" className="mb-4 scale-110" />
@@ -291,18 +312,18 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
           </p>
 
           <div className="mt-4 flex items-center gap-5">
-            <span className={`font-heading text-3xl font-bold opacity-40 ${RANK_COLOR[MOCK.rankUp.from] || ""}`}>
-              {MOCK.rankUp.from}
+            <span className={`font-heading text-3xl font-bold opacity-40 ${RANK_COLOR[effectiveRankUp.from] || ""}`}>
+              {effectiveRankUp.from}
             </span>
             <span className="text-2xl text-[#FBBF24]" style={{ textShadow: "1px 1px 0 #B45309" }}>
               ▶
             </span>
             <span className="relative inline-block">
               <span
-                className={`inline-block font-heading text-7xl font-bold ${RANK_COLOR[MOCK.rankUp.to] || ""}`}
+                className={`inline-block font-heading text-7xl font-bold ${RANK_COLOR[effectiveRankUp.to] || ""}`}
                 style={{ textShadow: "4px 4px 0 rgba(180,83,9,.35)", animation: "dq-rankup-new .9s ease-out both" }}
               >
-                {MOCK.rankUp.to}
+                {effectiveRankUp.to}
               </span>
               {RANKUP_SPARKS.map((s, i) => (
                 <span
@@ -323,15 +344,15 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
           </div>
 
           <p className="mt-4 text-sm text-[#9D5C7C]">
-            เก็บแต้มครบ! แรงค์ขยับจาก <span className="font-bold text-[#8B5CF6]">{MOCK.rankUp.from}</span> เป็น{" "}
-            <span className="font-bold text-emerald-600">{MOCK.rankUp.to}</span> เรียบร้อย
+            เก็บแต้มครบ! แรงค์ขยับจาก <span className="font-bold text-[#8B5CF6]">{effectiveRankUp.from}</span> เป็น{" "}
+            <span className="font-bold text-emerald-600">{effectiveRankUp.to}</span> เรียบร้อย
           </p>
           <p className="mt-1 text-[11px] text-[#9D5C7C]/80">
-            เป้าหมายถัดไป: <span className="font-heading font-bold text-[#FBBF24]" style={{ textShadow: "1px 1px 0 #B45309" }}>{MOCK.rankUp.nextGoal}</span>
+            เป้าหมายถัดไป: <span className="font-heading font-bold text-[#FBBF24]" style={{ textShadow: "1px 1px 0 #B45309" }}>{effectiveRankUp.nextGoal}</span>
           </p>
 
           <button
-            onClick={() => setUi("done")}
+            onClick={() => setClaimResult((r) => (r ? { ...r, kind: "done" } : { kind: "done", ...MOCK.done }))}
             className="mt-6 w-full max-w-[260px] rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-2.5 font-heading text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,.30)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(139,92,246,.42)] hover:brightness-105 active:translate-y-px"
           >
             ไปต่อเลย 🚀
@@ -339,7 +360,7 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
         </main>
       )}
 
-      {ui === "done" && (
+      {effectiveUi === "done" && (
         /* ---------- ทำเสร็จวันนี้แล้ว — celebration เล่นใหญ่ + CTA ชวนแชร์ ---------- */
         <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-8 pb-12 text-center md:max-w-lg">
           <GhostMascot mood="fireworks" className="mb-5 scale-110" />
@@ -347,11 +368,11 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
             className="font-heading text-4xl font-bold"
             style={{ color: "#FBBF24", textShadow: "3px 3px 0 #B45309", animation: "dq-in .35s ease-out" }}
           >
-            +{MOCK.done.earnedXp} XP
+            +{effectiveDone.earnedXp} XP
           </p>
           <h1 className="mt-2 font-heading text-xl font-bold">เควสวันนี้เสร็จแล้ว! 🎉</h1>
           <p className="mt-1.5 text-sm text-[#9D5C7C]">
-            streak พุ่งเป็น <span className="font-bold text-[#831843]">{MOCK.done.newStreak} วันติด</span> 🔥
+            streak พุ่งเป็น <span className="font-bold text-[#831843]">{effectiveDone.newStreak} วันติด</span> 🔥
             — อวดให้เพื่อนอิจฉาหน่อยมั้ย
           </p>
           <div className="mt-6 flex w-full max-w-[280px] flex-col gap-2.5">
@@ -378,16 +399,16 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
           {/* header: วันที่ + หัวข้อ + avatar จาก Google */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[11px] text-[#9D5C7C]">{MOCK.dateLabel} • เควสวันนี้</p>
-              <h1 className="font-heading text-xl font-bold">{MOCK.topic}</h1>
+              <p className="text-[11px] text-[#9D5C7C]">{dateLabel} • เควสวันนี้</p>
+              <h1 className="font-heading text-xl font-bold">{topicTitle}</h1>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-400 font-heading text-sm font-bold text-white">
-              {MOCK.userInitial}
+              {userInitial}
             </div>
           </div>
 
           {/* banner ปลอบตอน streak ขาด — ยุให้กลับมา ไม่ประณาม */}
-          {ui === "broken" && (
+          {effectiveUi === "broken" && (
             <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800" style={{ animation: "dq-in .3s ease-out" }}>
               <span className="font-bold">streak ขาดไปเมื่อวาน 🥲 ไม่เป็นไรเลย</span>
               <br />
@@ -396,22 +417,28 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
           )}
 
           {/* banner ต้อนรับวันแรก — เลข 0 แต่ต้องไม่โล่งหลอน */}
-          {ui === "day1" && (
+          {effectiveUi === "day1" && (
             <div className="mt-3 rounded-2xl border border-[#FBCFE8] bg-white/80 px-3.5 py-2.5 text-xs leading-relaxed text-[#9D5C7C]" style={{ animation: "dq-in .3s ease-out" }}>
               <span className="font-bold text-[#831843]">ยินดีต้อนรับสู่ลุยเควส! 👋</span>
               <br />
-              เควสแรกจัดให้แล้ว ใช้เวลาแค่ ~{MOCK.quest.minutes} นาที — จบวันนี้ได้ทั้ง XP แรกและ streak วันแรกเลย
+              เควสแรกจัดให้แล้ว ใช้เวลาแค่ ~{quest.minutes} นาที — จบวันนี้ได้ทั้ง XP แรกและ streak วันแรกเลย
+            </div>
+          )}
+
+          {claimError && (
+            <div className="mt-3 flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1.5 text-[11px] text-red-600" style={{ animation: "dq-in .3s ease-out" }}>
+              ⚠️ {claimError}
             </div>
           )}
 
           {/* แถบสถานะ */}
           <div className="mt-4">
             <StatStrip
-              stats={stats}
+              stats={effectiveStats}
               subs={
-                ui === "day1"
+                effectiveUi === "day1"
                   ? { xp: "เก็บแต้มแรกวันนี้", streak: "เริ่มนับวันนี้", board: "ทำเควสแรกก่อน" }
-                  : ui === "broken"
+                  : effectiveUi === "broken"
                     ? { streak: "เริ่มใหม่วันนี้" }
                     : {}
               }
@@ -419,46 +446,50 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
           </div>
 
           {/* แถบ EXP แรงค์: B ──▶ A */}
-          <RankBar stats={stats} />
+          <RankBar stats={effectiveStats} />
 
           {/* การ์ดเควสวันนี้ */}
           <div className="mt-4 rounded-2xl border-2 border-[#FBCFE8] bg-white/80 p-4">
             <div className="flex items-center gap-2 text-[11px] text-[#9D5C7C]">
-              <span>⏱ {MOCK.quest.minutes} นาที</span>
+              <span>⏱ {quest.minutes} นาที</span>
               <span>•</span>
-              <span className="font-bold text-[#8B5CF6]">⚡ {MOCK.quest.xp} XP</span>
+              <span className="font-bold text-[#8B5CF6]">⚡ {quest.xp} XP</span>
             </div>
-            <h2 className="mt-1.5 font-heading text-[15px] font-bold leading-snug">{MOCK.quest.title}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-[#9D5C7C]">{MOCK.quest.desc}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {MOCK.quest.resources.map((r, i) => (
-                <a
-                  key={i}
-                  href={r.url}
-                  className="flex items-center gap-1.5 rounded-full border border-[#FBCFE8] bg-white px-3 py-1.5 text-[11px] font-bold text-[#8B5CF6] transition hover:-translate-y-0.5 hover:border-[#8B5CF6]/50 hover:shadow-[0_6px_14px_rgba(139,92,246,.15)] active:translate-y-px"
-                >
-                  <Icon name={r.icon} />
-                  {r.label}
-                </a>
-              ))}
-            </div>
+            <h2 className="mt-1.5 font-heading text-[15px] font-bold leading-snug">{quest.title}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-[#9D5C7C]">{quest.desc}</p>
+            {resources.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {resources.map((r) => (
+                  <a
+                    key={r.id}
+                    href={r.link_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 rounded-full border border-[#FBCFE8] bg-white px-3 py-1.5 text-[11px] font-bold text-[#8B5CF6] transition hover:-translate-y-0.5 hover:border-[#8B5CF6]/50 hover:shadow-[0_6px_14px_rgba(139,92,246,.15)] active:translate-y-px"
+                  >
+                    <Icon name="book" />
+                    {r.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* checklist — gating: ครบทุกข้อถึงได้ XP */}
           <div className="mt-4">
             <div className="flex items-baseline justify-between">
               <h3 className="font-heading text-sm font-bold">
-                เช็คลิสต์ <span className="text-[#9D5C7C]">({checked.length}/{MOCK.quest.checklist.length})</span>
+                เช็คลิสต์ <span className="text-[#9D5C7C]">({checked.length}/{checklistItems.length})</span>
               </h3>
               <span className="text-[10px] text-[#9D5C7C]">ติ๊กครบทุกข้อถึงได้ XP นะ</span>
             </div>
             <div className="mt-2 flex flex-col gap-2">
-              {MOCK.quest.checklist.map((item, i) => {
-                const isOn = checked.includes(i);
+              {checklistItems.map((item) => {
+                const isOn = checked.includes(item.id);
                 return (
                   <button
-                    key={i}
-                    onClick={() => toggleItem(i)}
+                    key={item.id}
+                    onClick={() => toggleItem(item.id)}
                     className={`group flex w-full cursor-pointer items-center gap-3 rounded-2xl border-2 px-3.5 py-3 text-left transition active:translate-y-px ${
                       isOn
                         ? "border-[#8B5CF6]/40 bg-white"
@@ -477,7 +508,7 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
                       )}
                     </span>
                     <span className={`text-[13px] leading-snug ${isOn ? "text-[#9D5C7C] line-through" : "text-[#831843]"}`}>
-                      {item}
+                      {item.label}
                     </span>
                   </button>
                 );
@@ -489,10 +520,11 @@ export default function DailyQuestPage({ initialState = "ready", onOpenCoach, on
           {allChecked && (
             <div ref={ctaRef} className="mt-auto pb-1 pt-5" style={{ animation: "dq-in .25s ease-out" }}>
               <button
-                onClick={() => setUi("rankup")}
-                className="w-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-2.5 font-heading text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,.30)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(139,92,246,.42)] hover:brightness-105 active:translate-y-px"
+                onClick={handleClaim}
+                disabled={claiming}
+                className={`w-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-2.5 font-heading text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,.30)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(139,92,246,.42)] hover:brightness-105 active:translate-y-px ${claiming ? "opacity-70" : ""}`}
               >
-                เคลม {MOCK.quest.xp} XP เลย 🎉
+                {claiming ? "กำลังเคลม..." : `เคลม ${quest.xp} XP เลย 🎉`}
               </button>
             </div>
           )}
