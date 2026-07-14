@@ -57,7 +57,9 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name'),
     new.raw_user_meta_data->>'avatar_url',
-    'LQ' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6))  -- เช่น LQ9F3A2C
+    -- Supabase ติดตั้ง pgcrypto ไว้ที่ schema `extensions` ไม่ใช่ `public` — ต้อง qualify
+    -- ชื่อ ไม่งั้น trigger นี้ล้มทุกครั้ง (ทำให้สมัครสมาชิกไม่ได้เลย พบตอน verify ticket #10)
+    'LQ' || upper(substr(encode(extensions.gen_random_bytes(4), 'hex'), 1, 6))  -- เช่น LQ9F3A2C
   );
   return new;
 end;
@@ -212,6 +214,43 @@ create table public.referrals (
 );
 
 create index idx_referrals_referrer on public.referrals(referrer_id);
+
+-- Redeem referral แบบ atomic ในทีเดียว (#10) — กัน lost-update ถ้า referrer โดนอัปเดต total_xp
+-- พร้อมกันจากที่อื่น (เช่น complete-quest.js) และกันสถานะค้างครึ่ง ๆ กลาง ๆ ถ้าขั้นใดขั้นหนึ่งพัง
+-- (referrals insert สำเร็จแต่จ่าย XP ไม่ครบ) — ทั้งฟังก์ชันอยู่ใน transaction เดียวของ Postgres
+create or replace function public.redeem_referral(p_referrer_id uuid, p_referred_id uuid, p_bonus integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_referred_total_xp integer;
+begin
+  insert into public.referrals (referrer_id, referred_id, referrer_xp_awarded, referred_xp_awarded)
+  values (p_referrer_id, p_referred_id, p_bonus, p_bonus);
+
+  update public.profiles
+  set total_xp = total_xp + p_bonus, referred_by = p_referrer_id
+  where id = p_referred_id
+  returning total_xp into v_referred_total_xp;
+
+  update public.profiles
+  set total_xp = total_xp + p_bonus
+  where id = p_referrer_id;
+
+  insert into public.activity_log (user_id, event_type, metadata) values
+    (p_referred_id, 'referral_signup', jsonb_build_object('referrer_id', p_referrer_id, 'xp_awarded', p_bonus)),
+    (p_referrer_id, 'referral_signup', jsonb_build_object('referred_id', p_referred_id, 'xp_awarded', p_bonus));
+
+  return v_referred_total_xp;
+end;
+$$;
+
+-- Postgres แจก EXECUTE ให้ PUBLIC อัตโนมัติตอนสร้าง function (บั๊กเดียวกับ default privileges
+-- ของ view ที่เจอตอน ticket #03) — ฟังก์ชันนี้ security definer + ไม่เช็คสิทธิ์เอง ถ้าไม่ revoke
+-- ผู้ใช้ anon/authenticated จะยิง PostgREST /rpc/redeem_referral ตรง ๆ แจก XP เองได้เลย ต้องปิด
+revoke execute on function public.redeem_referral(uuid, uuid, integer) from public, anon, authenticated;
 
 create table public.chat_messages (
   id          bigint generated always as identity primary key,

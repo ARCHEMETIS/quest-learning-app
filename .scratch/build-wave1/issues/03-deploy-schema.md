@@ -15,6 +15,14 @@ Blocked by: 01
 4. ✅ **ทดสอบ RLS ด้วย anon key จริง (REST API):** profiles→`[]`, activity_log→`[]`, insert topics→42501 RLS violation, topics/starter_quests/public_stats อ่านได้ตามสเปก
 5. ✅ **เจอ+ปิดจุดรั่ว:** default privileges ของ Supabase แอบให้ `anon` อ่าน view `leaderboard` ได้ (สเปกบอกเฉพาะคนล็อกอิน) → `revoke select on public.leaderboard from anon;` รันบน DB แล้ว + เพิ่มบรรทัดนี้ใน schema.sql แล้ว — ตอนนี้ anon เจอ permission denied ✓
 
+### 🐛 บั๊กร้ายแรงที่เจอ+แก้แล้ว (14 ก.ค. ค่ำ ตอน verify ticket #10): สมัครสมาชิกไม่ได้เลยสักคน
+ระหว่างเขียน+ทดสอบ `redeem-referral.js` (สร้าง test user จริงผ่าน `auth.admin.createUser`) เจอว่า **`handle_new_user()` trigger fail 100% ของเวลา** → GoTrue คืน 500 "Database error creating new user" ทุกครั้งที่มีการสมัคร (Google OAuth ก็โดนเหมือนกัน เพราะ trigger เดียวกันทำงานกับทุก insert บน `auth.users` ไม่ว่า provider ไหน)
+- **สาเหตุ:** Supabase ติดตั้ง extension `pgcrypto` ไว้ที่ schema `extensions` โดย default ไม่ใช่ `public` — แต่ `handle_new_user()` รัน `set search_path = public` แล้วเรียก `gen_random_bytes()` (ตอนสุ่ม `referral_code`) แบบไม่ qualify schema → หา function ไม่เจอ → insert ลง `profiles` fail → trigger fail → ทั้ง transaction rollback (`auth.users` insert ก็หายไปด้วย)
+- **ยืนยันด้วย SQL:** `select extname, extnamespace::regnamespace from pg_extension where extname='pgcrypto'` → ได้ `extensions` ไม่ใช่ `public`; และ `select count(*) from public.profiles` = 0 แถว (ยืนยันว่าไม่เคยมีใครสมัครสำเร็จเลยตั้งแต่ deploy schema)
+- **แก้แล้วบน production:** `create or replace function public.handle_new_user()` เปลี่ยนเป็น `extensions.gen_random_bytes(4)` (schema-qualify) — รันผ่าน SQL Editor แล้ว + อัพเดต `supabase/schema.sql` ในโค้ดให้ตรงกันแล้ว
+- **ทดสอบยืนยัน:** สร้าง test user (email/password ผ่าน `auth.admin.createUser` + `signInWithPassword`) สมัครสำเร็จ ได้ `referral_code` ปกติ — ลบ test data ออกจาก production หมดแล้ว (auth.users/profiles/referrals/activity_log กลับเป็น 0 แถวเหมือนเดิม)
+- **นัยยะ:** นี่คือบั๊กที่บล็อก Destination ทั้งอันของ map (ไม่มีใครสมัครแอพได้เลย) — เจอเพราะบังเอิญทดสอบ signup path ตรง ๆ ตอนทำ ticket #10 ไม่ใช่เพราะ QA ที่วางแผนไว้; **ต้องเพิ่มเช็คนี้เข้า QA checklist ของ ticket #11** (ทดสอบสมัครจริงด้วยบัญชี Google จริงบน production ก่อนประกาศ live)
+
 ### ⬜ ค้างอย่างเดียว: bootstrap admin (ทำได้หลังล็อกอิน Google ครั้งแรก)
 ตอนนี้ยังไม่มี user ใน auth.users (registered_total = 0) — หลังเจ้าของล็อกอิน Google ครั้งแรกบนแอพ ให้รัน:
 ```sql
