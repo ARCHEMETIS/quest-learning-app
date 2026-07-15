@@ -242,6 +242,40 @@ function buildFreeformRoadmapPrompt({ topicTitle, level, minutesPerDay }) {
  *    (roadmap ถูก insert เป็น status:'failed', is_active:false — ไม่กินโควตา active roadmap ของแผนฟรี ผู้ใช้เรียกซ้ำได้)
  */
 export async function createFreeformRoadmap(admin, { userId, topicTitle, level, minutesPerDay }) {
+  // เคยมี roadmap หัวข้อพิมพ์อิสระนี้อยู่แล้ว (จับคู่ด้วย topic_title แบบ case-insensitive/trim เพราะ topic_id เป็น null
+  // เลยไม่มี unique constraint ให้พึ่ง) — สลับกลับมา active แทนการยิง Gemini + insert ใหม่ (progress เดิมอยู่ครบ)
+  // ไม่นับแถว status='failed' เป็น "มีหัวข้อนี้อยู่แล้ว" (ไม่มีเนื้อหาจริงให้กลับไปเรียนต่อ)
+  const trimmedTitle = topicTitle.trim();
+  const { data: existing, error: existingErr } = await admin
+    .from('roadmaps')
+    .select('id, topic_id, topic_title, level, minutes_per_day, is_active, status, created_at')
+    .eq('user_id', userId)
+    .is('topic_id', null)
+    .ilike('topic_title', trimmedTitle)
+    .neq('status', 'failed')
+    .maybeSingle();
+  if (existingErr) throw existingErr;
+  if (existing) {
+    if (!existing.is_active) {
+      await pauseActiveRoadmaps(admin, userId);
+      const { error: actErr } = await admin.from('roadmaps').update({ is_active: true }).eq('id', existing.id);
+      if (actErr) throw actErr;
+      existing.is_active = true;
+    }
+    const { data: quest, error: questErr } = await admin
+      .from('daily_quests')
+      .select('id, roadmap_id, phase_id, day_number, title, description, content, xp_reward')
+      .eq('roadmap_id', existing.id)
+      .eq('day_number', 1)
+      .maybeSingle();
+    if (questErr) throw questErr;
+    const { data: checklist, error: checklistErr } = quest
+      ? await admin.from('quest_checklist_items').select('id, order_index, label, link_url').eq('quest_id', quest.id)
+      : { data: [], error: null };
+    if (checklistErr) throw checklistErr;
+    return { roadmap: existing, quest, checklist: checklist ?? [], reused: true };
+  }
+
   // เช็คเพดานก่อนยิง Gemini เสมอ — กันไม่ให้เสียโควต้า Gemini ฟรีไปกับ request ที่รู้อยู่แล้วว่าจะถูกปฏิเสธ
   // (ยังไม่พัก roadmap เดิมตรงนี้ — พักหลัง generate สำเร็จเท่านั้น กันเคส Gemini ล่มแล้วหัวข้อเดิมโดนพักทิ้งเปล่า ๆ)
   await assertSavedCapacity(admin, userId);
