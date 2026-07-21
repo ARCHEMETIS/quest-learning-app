@@ -43,3 +43,7 @@ Blocked by: 02, 06
 **Known follow-ups (ยอมรับได้ ยังไม่ทำ):** useProfile ยังเรียกแยกต่อหน้า (โหลดใหม่ทุก navigation — ถูกต้องแต่ไม่ประหยัดสุด ถ้าหน้าเยอะขึ้นค่อยยกเป็น context แบบ useAuth), GRADE_BANDS ใน Quest.jsx ต้อง sync มือกับ gameplay.js ถ้า threshold เปลี่ยน, preview toggle ของ component เพื่อนบางตัวเป็น dead path แล้ว (ไม่กระทบ production)
 
 **เหลือปิด ticket:** wiring 6 หน้าที่เหลือเมื่อเพื่อนส่ง component มา (backend/API พร้อมหมดแล้ว)
+
+## ความคืบหน้า (21 ก.ค. 2026)
+
+เพื่อนส่ง component ที่เหลือครบแล้วผ่าน PR `frontend/add-leaderboard-streak-stats-appshell`: `LeaderboardPage.jsx`, `StatsPage.jsx`, `StreakCardPage.jsx`, `AppShell.jsx`, `ProfileDrawer.jsx` (+ `LuiQuestLogo.jsx` ได้ prop `size` เพิ่ม แบบ non-breaking) — **แต่ `AppShell`/`ProfileDrawer` ออกแบบมาบนโมเดล tab-switching ชั้นเดียว ไม่ตรงกับ routing จริงที่ใช้ React Router แยก route ต่อหน้า** ต้องปรับก่อนเสียบจริง รายละเอียดเต็ม + prop-mapping ของอีก 3 หน้า + open questions (`/stats/:handle` vs view รวมทั้งแอพ, ปุ่ม upgrade ยังไม่มี backend) → [09-integrate-ui-remaining-pages.md](09-integrate-ui-remaining-pages.md)
