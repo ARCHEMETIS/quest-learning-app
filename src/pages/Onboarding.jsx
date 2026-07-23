@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import OnboardingFlow from '../components/OnboardingFlow.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useProfile } from '../hooks/useProfile.jsx';
@@ -10,14 +10,18 @@ export default function Onboarding() {
   const { session } = useAuth();
   const { activeRoadmapId: roadmapId, loading } = useProfile();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const token = session?.access_token;
+  // ?mode=new = ตั้งใจมาเพิ่มหัวข้อใหม่จากปุ่มใน ProfileDrawer (ไม่ใช่ onboarding ครั้งแรก)
+  // ต้องข้าม guard ด้านล่าง ไม่งั้นโดนเด้งกลับ /quest ทันทีเพราะมี active roadmap อยู่แล้ว
+  const addingNewTopic = searchParams.get('mode') === 'new';
 
   // มี active roadmap อยู่แล้ว (เคย onboard ไปแล้ว) — ไม่ต้องทำซ้ำ ส่งกลับไปหน้าเควสเลย
   useEffect(() => {
-    if (!loading && roadmapId) navigate('/quest', { replace: true });
-  }, [loading, roadmapId, navigate]);
+    if (!loading && roadmapId && !addingNewTopic) navigate('/quest', { replace: true });
+  }, [loading, roadmapId, addingNewTopic, navigate]);
 
-  if (loading || roadmapId) return null;
+  if (loading || (roadmapId && !addingNewTopic)) return null;
 
   const handleComplete = async ({ topicId, topicTitle, level, minutesPerDay }) => {
     const mappedLevel = LEVEL_ID_TO_LEVEL[level];
@@ -39,5 +43,12 @@ export default function Onboarding() {
     setTimeout(() => navigate('/quest', { replace: true }), 1200);
   };
 
-  return <OnboardingFlow showStateToggle={false} onComplete={handleComplete} />;
+  return (
+    <OnboardingFlow
+      showStateToggle={false}
+      onComplete={handleComplete}
+      // มีทางออกกลับหน้าเควสเฉพาะตอนเข้ามาเพิ่มหัวข้อใหม่ (onboarding ครั้งแรกยังไม่มีเควสให้กลับไป)
+      onExit={addingNewTopic ? () => navigate('/quest', { replace: true }) : undefined}
+    />
+  );
 }

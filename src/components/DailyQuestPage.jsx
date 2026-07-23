@@ -429,9 +429,16 @@ export default function DailyQuestPage({
               <p className="text-[11px] text-[#9D5C7C]">{dateLabel} • เควสวันนี้</p>
               <h1 className="font-heading text-xl font-bold">{topicTitle}</h1>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-400 font-heading text-sm font-bold text-white">
+            {/* อวตารนี้เด่นกว่าปุ่มโปรไฟล์จริงในแถบบน คนจึงกดตัวนี้เป็นอันแรก — เดิมเป็น <div> เฉย ๆ กดแล้วเงียบ
+                ตอนนี้ยิง event เดียวกับที่ AppShellLayout ฟังอยู่แล้ว (luiquest-open-profile) เพื่อเปิดแถบโปรไฟล์ */}
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("luiquest-open-profile"))}
+              aria-label="เปิดแถบโปรไฟล์"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-400 font-heading text-sm font-bold text-white transition hover:brightness-110 active:translate-y-px"
+            >
               {userInitial}
-            </div>
+            </button>
           </div>
 
           {/* banner ปลอบตอน streak ขาด — ยุให้กลับมา ไม่ประณาม */}

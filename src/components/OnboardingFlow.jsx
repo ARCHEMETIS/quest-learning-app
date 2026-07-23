@@ -145,7 +145,7 @@ const OptionRow = ({ option, selected, onSelect }) => (
 
 // onComplete({ topicId, topicTitle, level, minutesPerDay }) ต้องคืน Promise — topicId เป็น null แปลว่าหัวข้อพิมพ์อิสระ
 // ต่อ API จริงเสมอ (ticket #09): curated ยิงระหว่างหน้าคั่น (~0.9 วิ), พิมพ์อิสระยิงตอนเข้า generating
-export default function OnboardingFlow({ initialState = "step1", onComplete, showStateToggle = true }) {
+export default function OnboardingFlow({ initialState = "step1", onComplete, onExit, showStateToggle = true }) {
   const [ui, setUi] = useState(initialState);
   const [topicId, setTopicId] = useState(null);
   const [customTopic, setCustomTopic] = useState("");
@@ -306,12 +306,14 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
             showStateToggle ? "pt-14" : "pt-6"
           }`}
         >
-          {/* แถบปุ่มย้อน — โชว์เฉพาะขั้น 2–3 (progress ไปอยู่หน้าคั่นแทน) */}
-          {step > 1 && (
+          {/* แถบปุ่มย้อน — ขั้น 2–3 ย้อนไปขั้นก่อนหน้า (progress ไปอยู่หน้าคั่นแทน);
+              ขั้น 1 โชว์ปุ่มนี้เฉพาะตอนมี onExit (เข้ามาจากปุ่ม "เพิ่มหัวข้อใหม่" ใน drawer)
+              เพื่อให้เปลี่ยนใจกลับหน้าเควสเดิมได้ — onboarding ครั้งแรกไม่มีที่ให้ย้อนไป จึงไม่โชว์ */}
+          {(step > 1 || onExit) && (
             <div className="mb-4 flex h-9 items-center">
               <button
-                onClick={() => setUi(step === 2 ? "step1" : "step2")}
-                aria-label="ย้อนกลับ"
+                onClick={() => (step === 1 ? onExit?.() : setUi(step === 2 ? "step1" : "step2"))}
+                aria-label={step === 1 ? "กลับไปหน้าเควส" : "ย้อนกลับ"}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-[#FBCFE8] bg-white/80 text-[#9D5C7C] transition hover:border-[#8B5CF6]/50 hover:bg-white hover:text-[#8B5CF6] active:translate-y-px"
               >
                 <BackIcon />

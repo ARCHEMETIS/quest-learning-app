@@ -208,6 +208,7 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
 
   const [switchingId, setSwitchingId] = useState(null);
   const [switchMsg, setSwitchMsg] = useState("");
+  const [showCapUpsell, setShowCapUpsell] = useState(false); // เด้งกล่องขายพรีเมียมเมื่อกด "เพิ่มหัวข้อใหม่" ตอนครบเพดาน
   const [copied, setCopied] = useState(false);
   const [shareMsg, setShareMsg] = useState("");
   const timers = useRef({});
@@ -359,9 +360,37 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
                     {switchMsg}
                   </p>
                 )}
-                {atCap && (
-                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-800">
-                    เก็บครบ {TOPIC_CAP_FREE} หัวข้อแล้ว — เรียนหลายหัวข้อพร้อมกันไม่จำกัดจะมากับพรีเมียมเร็ว ๆ นี้ ✨
+                {/* เพิ่มหัวข้อใหม่ — ทางเข้าเดียวที่พาไป onboarding ได้หลังมี roadmap แล้ว
+                    (ก่อนหน้านี้ผู้ใช้สลับได้เฉพาะหัวข้อที่เก็บไว้ ไม่มีทางเริ่มหัวข้อใหม่เลยทั้งที่เพดานฟรีให้ 3)
+                    โชว์เสมอแม้ครบเพดาน — พอครบแล้วกดจะเด้งขายพรีเมียมแทนการพาไป onboarding
+                    (จังหวะที่ผู้ใช้ "อยากได้เพิ่ม" คือจังหวะขายที่ดีที่สุด ดีกว่าซ่อนปุ่มแล้วเงียบไป) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (atCap) {
+                      setShowCapUpsell(true);
+                      return;
+                    }
+                    requestClose();
+                    navigate("/onboarding?mode=new");
+                  }}
+                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-[#FBCFE8] bg-white/60 px-3 py-2.5 text-[12px] font-bold text-[#8B5CF6] transition hover:border-[#8B5CF6]/60 hover:bg-white active:translate-y-px"
+                >
+                  <span className="text-[14px] leading-none">+</span> เพิ่มหัวข้อใหม่
+                </button>
+
+                {atCap && showCapUpsell && (
+                  <div
+                    className="mt-2.5 rounded-2xl border border-[#8B5CF6]/30 bg-gradient-to-br from-violet-50 to-pink-50 px-3 py-3 text-[11px] leading-relaxed text-[#831843]"
+                    style={{ animation: "pd-in .25s ease-out" }}
+                  >
+                    <p className="font-heading text-[12px] font-bold">
+                      เก็บครบ {TOPIC_CAP_FREE} หัวข้อแล้ว ✨
+                    </p>
+                    <p className="mt-1 text-[#9D5C7C]">
+                      แผนฟรีเก็บได้ {TOPIC_CAP_FREE} หัวข้อ (progress ทุกหัวข้อยังอยู่ครบ สลับกลับมาเรียนต่อได้เสมอ) —
+                      อยากลุยหลายหัวข้อพร้อมกันไม่จำกัด รอพรีเมียมเร็ว ๆ นี้
+                    </p>
                   </div>
                 )}
               </div>
