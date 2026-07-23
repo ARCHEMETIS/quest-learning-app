@@ -14,8 +14,10 @@ export default defineConfig({
         short_name: 'ลุยเควส',
         description: 'อยากเก่งอะไร ลุยเลย — วันละเควส',
         lang: 'th',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        // สีแบรนด์จริง (ชมพูอ่อนเหมือนพื้นแอพ) — ของเดิม #0f172a เป็นสีดำน้ำเงินที่ติดมาจาก scaffold
+        // background_color = สีจอ splash ตอนเปิดแอพที่ติดตั้งไว้ ถ้าปล่อยเป็นดำจะแฟลชดำก่อนเข้าแอพชมพูทุกครั้ง
+        theme_color: '#FDF2F8',
+        background_color: '#FDF2F8',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
