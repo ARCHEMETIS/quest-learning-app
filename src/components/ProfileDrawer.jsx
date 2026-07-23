@@ -93,6 +93,10 @@ const ICON_PATHS = {
   share: [
     "M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z",
   ],
+  // trash (Heroicons 24/outline) — ปุ่มลบหัวข้อที่ไม่เอาแล้ว
+  trash: [
+    "m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0",
+  ],
 };
 
 const Icon = ({ paths, className = "h-4 w-4" }) => (
@@ -111,35 +115,81 @@ const SHARE_CHANNELS = [
   { id: "other", label: "อื่นๆ", className: "border border-[#FBCFE8] bg-white/80 text-[#8B5CF6]" },
 ];
 
-const TopicRow = ({ topic, onSelect }) => {
+const TopicRow = ({ topic, onSelect, confirming, deleting, onAskDelete, onCancelDelete, onConfirmDelete }) => {
   const meta = metaForTopic(topic.title);
   const disabled = topic.active;
   return (
-    <button
-      type="button"
-      onClick={() => !disabled && onSelect(topic.id)}
-      disabled={disabled}
-      className={`flex w-full items-center gap-2.5 rounded-2xl border-2 px-2.5 py-2 text-left transition ${
-        disabled
-          ? "cursor-default border-[#8B5CF6] bg-white shadow-[0_8px_20px_rgba(139,92,246,.18)]"
-          : "cursor-pointer border-[#FBCFE8] bg-white/70 hover:-translate-y-0.5 hover:border-[#F9A8D4] hover:bg-white hover:shadow-[0_10px_22px_rgba(236,72,153,.15)] active:translate-y-px"
-      }`}
-    >
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${meta.tint}`}>
-        <Icon paths={meta.icon} className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12px] font-bold text-[#831843]">{topic.title}</span>
-        <span className="block text-[9px] text-[#9D5C7C]">{LEVEL_LABEL[topic.level] ?? topic.level}</span>
-      </span>
-      {disabled ? (
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-[#8B5CF6] px-2 py-0.5 text-[8px] font-bold text-white">
-          กำลังลุยอยู่
-        </span>
-      ) : (
-        <Icon paths={ICON_PATHS.chevronRight} className="h-3.5 w-3.5 shrink-0 text-[#9D5C7C]" />
+    // ปุ่มลบต้องเป็นปุ่มพี่น้องข้าง ๆ แถว ไม่ใช่ซ้อนอยู่ใน <button> ของแถว (ปุ่มซ้อนปุ่มเป็น HTML ที่ใช้ไม่ได้
+    // และกดแล้วจะไปโดนปุ่มสลับหัวข้อแทน) — ตัวแถวเดิมไม่ถูกแก้ นอกจากเพิ่ม flex-1 ให้แบ่งที่กับปุ่มลบ
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => !disabled && onSelect(topic.id)}
+          disabled={disabled}
+          className={`flex w-full min-w-0 flex-1 items-center gap-2.5 rounded-2xl border-2 px-2.5 py-2 text-left transition ${
+            disabled
+              ? "cursor-default border-[#8B5CF6] bg-white shadow-[0_8px_20px_rgba(139,92,246,.18)]"
+              : "cursor-pointer border-[#FBCFE8] bg-white/70 hover:-translate-y-0.5 hover:border-[#F9A8D4] hover:bg-white hover:shadow-[0_10px_22px_rgba(236,72,153,.15)] active:translate-y-px"
+          }`}
+        >
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${meta.tint}`}>
+            <Icon paths={meta.icon} className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12px] font-bold text-[#831843]">{topic.title}</span>
+            <span className="block text-[9px] text-[#9D5C7C]">{LEVEL_LABEL[topic.level] ?? topic.level}</span>
+          </span>
+          {disabled ? (
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-[#8B5CF6] px-2 py-0.5 text-[8px] font-bold text-white">
+              กำลังลุยอยู่
+            </span>
+          ) : (
+            <Icon paths={ICON_PATHS.chevronRight} className="h-3.5 w-3.5 shrink-0 text-[#9D5C7C]" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => onAskDelete(topic.id)}
+          disabled={deleting}
+          aria-label={`ลบหัวข้อ ${topic.title}`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#FBCFE8] bg-white/70 text-[#9D5C7C] transition hover:border-red-300 hover:text-red-500 active:translate-y-px disabled:opacity-50"
+        >
+          <Icon paths={ICON_PATHS.trash} className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* ขั้นยืนยันแบบ inline — ห้ามใช้ window.confirm เพราะ dialog ของเบราว์เซอร์ทำ automation ที่ใช้เทสต์ค้าง */}
+      {confirming && (
+        <div
+          className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-[10px] leading-relaxed text-[#831843]"
+          style={{ animation: "pd-in .25s ease-out" }}
+        >
+          <p>
+            ลบ <span className="font-bold">{topic.title}</span> ทิ้ง? เควสกับความคืบหน้าของหัวข้อนี้จะหายถาวร กู้คืนไม่ได้ —
+            แต่ <span className="font-bold">XP กับ streak ที่เก็บมาแล้วยังอยู่ครบ</span> ไม่ถูกหักคืน
+          </p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onConfirmDelete(topic.id)}
+              disabled={deleting}
+              className="rounded-full bg-red-500 px-3 py-1.5 font-heading text-[10px] font-bold text-white shadow-[0_8px_18px_rgba(239,68,68,.28)] transition hover:-translate-y-0.5 active:translate-y-px disabled:opacity-60"
+            >
+              {deleting ? "กำลังลบ…" : "แน่ใจ? ลบเลย"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelDelete}
+              disabled={deleting}
+              className="rounded-full border border-[#FBCFE8] bg-white/80 px-3 py-1.5 text-[10px] font-bold text-[#9D5C7C] transition hover:border-[#8B5CF6]/50 hover:text-[#8B5CF6] active:translate-y-px"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
       )}
-    </button>
+    </div>
   );
 };
 
@@ -208,7 +258,14 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
 
   const [switchingId, setSwitchingId] = useState(null);
   const [switchMsg, setSwitchMsg] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // แถวไหนกำลังถามยืนยันลบอยู่ (ทีละแถวเดียว)
+  const [deletingId, setDeletingId] = useState(null);
   const [showCapUpsell, setShowCapUpsell] = useState(false); // เด้งกล่องขายพรีเมียมเมื่อกด "เพิ่มหัวข้อใหม่" ตอนครบเพดาน
+
+  // ปิดแถบแล้วเปิดใหม่ ต้องไม่ค้างคำถาม "แน่ใจ? ลบเลย" ของครั้งก่อนไว้ — กันเผลอกดยืนยันลบทั้งที่ลืมไปแล้วว่าเปิดค้างไว้
+  useEffect(() => {
+    if (!isOpen) setConfirmDeleteId(null);
+  }, [isOpen]);
 
   // ---- ปัดนิ้วปิดแถบ (แบบเฟซบุ๊ก) ----
   // dragX = ระยะที่นิ้วลากไปทางซ้าย (px) ระหว่างลากให้แถบวิ่งตามนิ้วจริง ๆ ไม่ใช่รอปล่อยแล้วค่อยเด้ง
@@ -245,6 +302,7 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
   const [shareMsg, setShareMsg] = useState("");
   const timers = useRef({});
   const switchingRef = useRef(false); // guard แบบ synchronous กัน double-tap สลับหัวข้อสองอันเร็ว ๆ (state switchingId อัพเดตช้าไป 1 render)
+  const deletingRef = useRef(false); // guard แบบเดียวกันสำหรับ "ลบเลย" — double-tap = ยิงลบซ้ำ (ครั้งที่สองได้ 404)
 
   useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), []);
 
@@ -258,7 +316,7 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
 
   // สลับหัวข้อ active จริงผ่าน service-role function แล้ว refetch โปรไฟล์ (progress หัวข้อเดิมไม่หาย)
   const selectTopic = async (roadmapId) => {
-    if (roadmapId === activeTopicId || switchingRef.current || !token) return;
+    if (roadmapId === activeTopicId || switchingRef.current || deletingRef.current || !token) return;
     switchingRef.current = true; // ล็อกทันที (sync) กันคลิกอันที่สองแทรกก่อน setSwitchingId จะ re-render
     const target = preset.topics.find((t) => t.id === roadmapId);
     setSwitchingId(roadmapId);
@@ -271,6 +329,32 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
     } finally {
       setSwitchingId(null);
       switchingRef.current = false;
+    }
+  };
+
+  // ลบหัวข้อทิ้งจริงผ่าน service-role function — endpoint เช็คเจ้าของก่อนลบ และถ้าลบตัวที่กำลังลุยอยู่
+  // มันจะเลื่อนหัวข้อที่เหลือขึ้นมา active ให้เอง (ไม่งั้นหน้าเควสจะเด้งไป onboarding ทั้งที่ยังมีหัวข้ออื่นอยู่)
+  const deleteTopic = async (roadmapId) => {
+    if (deletingRef.current || switchingRef.current || !token) return;
+    deletingRef.current = true; // ล็อกทันที (sync) กันกด "ลบเลย" รัว ๆ แบบเดียวกับ switchingRef
+    const target = preset.topics.find((t) => t.id === roadmapId);
+    setDeletingId(roadmapId);
+    try {
+      const res = await api.deleteRoadmap(roadmapId, token);
+      await refetch();
+      setConfirmDeleteId(null);
+      flash("switch", setSwitchMsg, `ลบ ${target?.title ?? "หัวข้อ"} แล้ว — XP ที่เก็บไว้ยังอยู่ครบ`);
+      // ไม่เหลือหัวข้อที่เรียนต่อได้เลย = ต้องไปตั้งหัวข้อใหม่ก่อน พาไปเองเลยตรงนี้
+      // (ถ้ารอให้หน้าเควสเด้งเอง คนที่กำลังอยู่หน้าอื่น เช่น อันดับ/สถิติ จะค้างอยู่ในสภาพ "ไม่มีหัวข้อ" แบบเงียบ ๆ)
+      if (!res?.active_roadmap_id) {
+        requestClose();
+        navigate("/onboarding");
+      }
+    } catch {
+      flash("switch", setSwitchMsg, "ลบหัวข้อไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setDeletingId(null);
+      deletingRef.current = false;
     }
   };
 
@@ -390,7 +474,16 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
                 </div>
                 <div className="flex flex-col gap-2">
                   {preset.topics.map((t) => (
-                    <TopicRow key={t.id} topic={{ ...t, active: t.id === activeTopicId }} onSelect={selectTopic} />
+                    <TopicRow
+                      key={t.id}
+                      topic={{ ...t, active: t.id === activeTopicId }}
+                      onSelect={selectTopic}
+                      confirming={confirmDeleteId === t.id}
+                      deleting={deletingId === t.id}
+                      onAskDelete={setConfirmDeleteId}
+                      onCancelDelete={() => setConfirmDeleteId(null)}
+                      onConfirmDelete={deleteTopic}
+                    />
                   ))}
                 </div>
                 {switchMsg && (
@@ -417,13 +510,29 @@ export default function ProfileDrawer({ open, onClose, showStateToggle = false }
                   <span className="text-[14px] leading-none">+</span> เพิ่มหัวข้อใหม่
                 </button>
 
-                {atCap && showCapUpsell && (
+                {/* ปุ่มอัปเกรดพรีเมียม — ดีไซน์เดิมของเพื่อน (commit e61b309) ที่ถูกซ่อนตอน wiring เพราะยังไม่มี payment flow
+                    เอากลับมาโชว์ตามที่เจ้าของขอ แต่ยัง "ไม่ขายจริง": กดแล้วเปิดกล่องเดิมที่บอกว่าพรีเมียมกำลังจะมา
+                    (กล่องเดียวกับตอนครบเพดาน ไม่สร้างกล่องที่สอง) — คนที่เป็นพรีเมียมอยู่แล้วไม่ต้องเห็นปุ่มนี้ */}
+                {preset.plan !== "premium" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCapUpsell(true)}
+                    className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1.5 font-heading text-[10px] font-bold text-white shadow-[0_8px_18px_rgba(139,92,246,.28)] transition hover:-translate-y-0.5 active:translate-y-px"
+                  >
+                    <Icon paths={ICON_PATHS.sparkles} className="h-3 w-3" />
+                    อัปเกรดพรีเมียม
+                  </button>
+                )}
+
+                {/* เลิกผูกกับ atCap แล้ว — กล่องนี้ถูกเปิดได้ 2 ทาง: กด "เพิ่มหัวข้อใหม่" ตอนครบเพดาน หรือกดปุ่มพรีเมียม
+                    หัวข้อกล่องจึงต้องเปลี่ยนตามทางที่เข้ามา ไม่งั้นคนที่มีหัวข้อเดียวจะเจอข้อความ "เก็บครบ 3 หัวข้อแล้ว" ที่ไม่จริง */}
+                {showCapUpsell && (
                   <div
                     className="mt-2.5 rounded-2xl border border-[#8B5CF6]/30 bg-gradient-to-br from-violet-50 to-pink-50 px-3 py-3 text-[11px] leading-relaxed text-[#831843]"
                     style={{ animation: "pd-in .25s ease-out" }}
                   >
                     <p className="font-heading text-[12px] font-bold">
-                      เก็บครบ {TOPIC_CAP_FREE} หัวข้อแล้ว ✨
+                      {atCap ? `เก็บครบ ${TOPIC_CAP_FREE} หัวข้อแล้ว ✨` : "พรีเมียม กำลังจะมา ✨"}
                     </p>
                     <p className="mt-1 text-[#9D5C7C]">
                       แผนฟรีเก็บได้ {TOPIC_CAP_FREE} หัวข้อ (progress ทุกหัวข้อยังอยู่ครบ สลับกลับมาเรียนต่อได้เสมอ) —

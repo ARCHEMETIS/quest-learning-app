@@ -60,6 +60,38 @@ const RANKUP_SPARKS = [
   { left: "30%", top: "-26%", delay: ".9s", char: "✦", color: "#34D399" },
 ];
 
+// ฝุ่นแสงลอยพื้นหลัง (ambient) — ให้หน้าไม่นิ่งเหมือนฟอร์ม แต่ยังอ่านตัวหนังสือทับได้
+// ตำแหน่ง/สี/จังหวะ fix ไว้เป็นตาราง ไม่สุ่มตอน render จะได้ไม่กระโดดใหม่ทุกครั้งที่ setState
+// 10 ชิ้นพอ + ขยับด้วย transform/opacity ล้วน เพราะเป็น PWA ที่คนติดตั้งบนมือถือ
+const DQ_PARTICLES = [
+  { left: "6%", top: "22%", size: 6, color: "#C4B5FD", dur: "13s", delay: "0s", rise: "-38px", peak: 0.5 },
+  { left: "18%", top: "62%", size: 4, color: "#F9A8D4", dur: "16s", delay: "1.4s", rise: "-30px", peak: 0.55 },
+  { left: "31%", top: "12%", size: 5, color: "#FBBF24", dur: "15s", delay: "3.1s", rise: "-34px", peak: 0.4 },
+  { left: "44%", top: "78%", size: 7, color: "#C4B5FD", dur: "18s", delay: "0.7s", rise: "-42px", peak: 0.35 },
+  { left: "57%", top: "34%", size: 4, color: "#F472B6", dur: "14s", delay: "2.2s", rise: "-28px", peak: 0.45 },
+  { left: "69%", top: "88%", size: 5, color: "#FBBF24", dur: "17s", delay: "4.5s", rise: "-36px", peak: 0.35 },
+  { left: "78%", top: "18%", size: 6, color: "#F9A8D4", dur: "15s", delay: "1.9s", rise: "-32px", peak: 0.5 },
+  { left: "88%", top: "56%", size: 4, color: "#C4B5FD", dur: "19s", delay: "3.6s", rise: "-40px", peak: 0.4 },
+  { left: "26%", top: "42%", size: 11, char: "✦", color: "#FBBF24", dur: "12s", delay: "2.8s", rise: "-26px", peak: 0.4 },
+  { left: "83%", top: "72%", size: 10, char: "✧", color: "#8B5CF6", dur: "14s", delay: "5.2s", rise: "-24px", peak: 0.35 },
+];
+
+// ประกายรอบปุ่มเคลม XP — เล่นรอบเดียวตอนปุ่มโผล่ (ใช้ keyframe dq-spark ตัวเดียวกับฉากแรงค์อัพ ให้ภาษาเดียวกัน)
+const CTA_SPARKS = [
+  { left: "6%", top: "-2px", delay: ".1s", char: "✦", color: "#FBBF24" },
+  { right: "10%", top: "-6px", delay: ".25s", char: "✧", color: "#F472B6" },
+  { left: "46%", top: "-8px", delay: ".4s", char: "✦", color: "#8B5CF6" },
+];
+
+// ---- ท่ามาตรฐานของหน้านี้ ----
+// popIn = การ์ด/ไทล์เด้งเข้าทีละใบแบบหน่วงกัน (stagger) ตอนหน้าโผล่ ไม่ให้ขึ้นมาพรวดเดียวทั้งหน้า
+// หน่วงสูงสุดตัดที่ index 12 กันเช็คลิสต์ยาว ๆ แล้วข้อท้าย ๆ มาช้าจนน่ารำคาญ
+const popIn = (i = 0) => ({
+  animation: `dq-pop .42s cubic-bezier(.22,1,.36,1) ${(0.05 + Math.min(i, 12) * 0.05).toFixed(2)}s both`,
+});
+// สั่นสั้น ๆ ตอนแตะของที่กดได้ (tactile) — สั้นกว่า 400ms เสมอ ไม่ให้ขวางการกดข้อถัดไป
+const WOBBLE = { animation: "dq-wobble .38s ease-in-out" };
+
 const PREVIEW_STATES = [
   { id: "loading", label: "โหลด" },
   { id: "ready", label: "เควสวันนี้" },
@@ -101,8 +133,8 @@ const RANK_COLOR = { S: "text-[#FBBF24]", A: "text-emerald-600", B: "text-[#8B5C
 // เดิมหลอดนี้นับ "วันติด" จึงค้าง 0% ทั้งที่ได้ XP มาแล้ว (เจ้าของเจอตอนใช้จริง 23 ก.ค. 2026)
 // สีไหลวนตลอดด้วย dq-rank-flow + ความกว้างมี transition ให้เห็นมันวิ่งไปตอนเคลม XP
 // ตอนหลอดว่าง (เพิ่งเลเวลอัพ) ยังโชว์แถบจาง ๆ ไว้ให้รู้ว่าหลอดมีอยู่ ไม่ใช่หน้าจอพัง
-const RankBar = ({ stats }) => (
-  <div className="mt-3 rounded-2xl border border-[#FBCFE8] bg-white/70 px-3.5 py-2.5">
+const RankBar = ({ stats, style }) => (
+  <div className="dq-anim mt-3 rounded-2xl border border-[#FBCFE8] bg-white/70 px-3.5 py-2.5" style={style}>
     <div className="flex items-center justify-between text-[10px] text-[#9D5C7C]">
       <span>
         XP สู่เลเวลถัดไป
@@ -119,7 +151,7 @@ const RankBar = ({ stats }) => (
       </span>
       <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[#FBCFE8]/60">
         <div
-          className="h-full rounded-full transition-[width] duration-700 ease-out"
+          className="dq-anim h-full rounded-full transition-[width] duration-700 ease-out"
           style={{
             width: `${Math.max(stats.rankPct ?? 0, 3)}%`, // ขั้นต่ำ 3% ให้เห็นหัวหลอดเสมอ
             opacity: (stats.rankPct ?? 0) === 0 ? 0.35 : 1,
@@ -140,30 +172,33 @@ const RankBar = ({ stats }) => (
 );
 
 // แถบสถานะ 4 ช่อง: XP / streak / phase / grade — sub ใส่ข้อความให้เลข 0 ยังดูมีชีวิต (state day1)
-const StatStrip = ({ stats, subs = {} }) => (
+// animate: ให้ 4 ไทล์เด้งเข้าไล่กันทีละใบตอนหน้าโผล่ (ตัวหน้าเรียกตอน intro เท่านั้น)
+const StatStrip = ({ stats, subs = {}, animate = false }) => {
+  const tile = (i) => (animate ? popIn(1 + i) : undefined);
+  return (
   <div className="grid grid-cols-4 gap-2">
-    <div className="rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center">
+    <div className="dq-anim rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center" style={tile(0)}>
       <p className="text-[10px] text-[#9D5C7C]">XP</p>
       <p className="font-heading text-[15px] font-bold text-[#831843]">{stats.xp.toLocaleString()}</p>
       {subs.xp && <p className="text-[9px] leading-tight text-[#9D5C7C]">{subs.xp}</p>}
     </div>
-    <div className="rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center">
+    <div className="dq-anim rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center" style={tile(1)}>
       <p className="text-[10px] text-[#9D5C7C]">streak 🔥</p>
       <p className="font-heading text-[15px] font-bold text-[#831843]">{stats.streak}</p>
       {subs.streak && <p className="text-[9px] leading-tight text-[#9D5C7C]">{subs.streak}</p>}
     </div>
-    <div className="rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center">
+    <div className="dq-anim rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center" style={tile(2)}>
       <p className="text-[10px] text-[#9D5C7C]">roadmap</p>
       <p className="font-heading text-[15px] font-bold text-[#831843]">{stats.phasePct}%</p>
       <div className="mx-auto mt-1 h-1 w-10 overflow-hidden rounded-full bg-[#FBCFE8]/70">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500"
+          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500 transition-[width] duration-700 ease-out"
           style={{ width: `${stats.phasePct}%` }}
         />
       </div>
     </div>
     {/* อันดับจาก leaderboard — อันดับ 1 ได้สีทอง (ตัวแรงค์ A/B/C ไปอยู่ที่แถบ EXP แทน ไม่โชว์ซ้ำ) */}
-    <div className="rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center">
+    <div className="dq-anim rounded-2xl border border-[#FBCFE8] bg-white/70 px-2 py-2 text-center" style={tile(3)}>
       <p className="text-[10px] text-[#9D5C7C]">อันดับ 🏆</p>
       <p className={`font-heading text-[15px] font-bold ${stats.boardRank === 1 ? "text-[#FBBF24]" : "text-[#831843]"}`}>
         {stats.boardRank ? `#${stats.boardRank}` : "–"}
@@ -173,7 +208,8 @@ const StatStrip = ({ stats, subs = {} }) => (
       </p>
     </div>
   </div>
-);
+  );
+};
 
 // แถบ skeleton ตอนโหลด
 const Skeleton = ({ className = "" }) => (
@@ -204,6 +240,13 @@ export default function DailyQuestPage({
   const [checked, setChecked] = useState([]);
   const [claimResult, setClaimResult] = useState(null);
   const ctaRef = useRef(null);
+  // intro = ช่วงที่ชุด pop-in กำลังเล่น (ตอนหน้าโผล่/ได้เควสใหม่) — พอจบแล้วต้องถอด style animation ทิ้ง
+  // ไม่งั้นเวลาแถวไหนสลับไปเล่นท่าสั่นแล้วสลับกลับ มันจะเด้ง pop-in ใหม่ทั้งที่อยู่บนจอมานานแล้ว
+  const [intro, setIntro] = useState(true);
+  // tapped = id ของอันที่เพิ่งแตะ (เก็บสั้น ๆ แล้วปลดเอง) — ใช้ state แทนใส่ animation ค้างไว้
+  // เพราะ inline animation ที่ค่าไม่เปลี่ยนจะไม่เล่นซ้ำตอนกดรอบสอง
+  const [tapped, setTapped] = useState(null);
+  const tapTimer = useRef(null);
 
   const effectiveUi = claimResult ? claimResult.kind : status ?? ui;
   const isQuestState = QUEST_STATES.includes(effectiveUi);
@@ -215,11 +258,25 @@ export default function DailyQuestPage({
   // ลิงก์แหล่งเรียนที่แนบมากับ checklist — โชว์เป็นชิปลิงก์ด่วนเหนือ checklist (คนละก้อนกับตัวเช็คลิสต์เอง)
   const resources = checklistItems.filter((item) => item.link_url);
 
-  // เปลี่ยน quest (วันใหม่) แล้วล้าง checklist + ผลเคลมของเควสก่อนหน้าทิ้ง
+  // เปลี่ยน quest (วันใหม่) แล้วล้าง checklist + ผลเคลมของเควสก่อนหน้าทิ้ง + เล่นชุด pop-in รอบใหม่
   useEffect(() => {
     setChecked([]);
     setClaimResult(null);
+    setIntro(true);
+    const t = setTimeout(() => setIntro(false), 1200); // > หน่วงสูงสุด (.65s) + ความยาวท่า (.42s)
+    return () => clearTimeout(t);
   }, [quest?.id]);
+
+  useEffect(() => () => clearTimeout(tapTimer.current), []);
+
+  // ใส่ท่า pop-in เฉพาะช่วง intro — นอกช่วงนั้นคืนค่า undefined ให้ element ไม่มี animation ค้าง
+  const enter = (i) => (intro ? popIn(i) : undefined);
+
+  const tap = (id) => {
+    setTapped(id);
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => setTapped(null), 420);
+  };
 
   // ติ๊กครบแล้วเลื่อนหน้าลงไปหาปุ่มเคลมให้เอง (pattern เดียวกับ OnboardingFlow)
   useEffect(() => {
@@ -228,10 +285,13 @@ export default function DailyQuestPage({
     }
   }, [allChecked, isQuestState]);
 
-  const toggleItem = (id) =>
+  const toggleItem = (id) => {
+    tap(id); // สั่นให้รู้ว่ารับแล้ว ก่อนค่อยไปเปลี่ยน state
     setChecked((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  };
 
   const handleClaim = async () => {
+    tap("cta");
     if (claiming) return;
     const result = await onClaim?.(checked);
     if (result?.ok) {
@@ -241,7 +301,9 @@ export default function DailyQuestPage({
 
   return (
     <div
-      className={`relative flex ${heightClass} flex-col overflow-hidden font-body text-[#831843]`}
+      // isolate = ทำให้กล่องนี้เป็น stacking context ของตัวเอง ชั้นฝุ่นแสงจึงวาง zIndex -1 ได้
+      // (อยู่เหนือพื้นหลัง แต่ต่ำกว่าเนื้อหาทุก state) โดยไม่ต้องไปไล่ใส่ z-index ให้ <main> ทีละอัน
+      className={`relative isolate flex ${heightClass} flex-col overflow-hidden font-body text-[#831843]`}
       style={{
         backgroundColor: "#FDF2F8",
         backgroundImage: [
@@ -257,7 +319,44 @@ export default function DailyQuestPage({
         @keyframes dq-rank-flow { 0% { background-position: 0% 50%; } 100% { background-position: -200% 50%; } }
         @keyframes dq-rankup-new { 0% { opacity: 0; transform: scale(2.8) rotate(-6deg); } 40% { opacity: 1; transform: scale(.9) rotate(2deg); } 60% { transform: scale(1.15) rotate(0deg); } 100% { transform: scale(1); } }
         @keyframes dq-spark { 0% { opacity: 0; transform: scale(.4) rotate(0deg); } 30% { opacity: 1; transform: scale(1.2) rotate(20deg); } 100% { opacity: 0; transform: translateY(-24px) scale(.8) rotate(-15deg); } }
+        /* การ์ด/ไทล์เด้งเข้า — ใช้คู่กับ popIn(i) ที่หน่วงทีละใบ */
+        @keyframes dq-pop { 0% { opacity: 0; transform: translateY(10px) scale(.96); } 60% { transform: translateY(-2px) scale(1.01); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        /* สั่นสั้น ๆ ตอนแตะของที่กดได้ */
+        @keyframes dq-wobble { 0%,100% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-2.2deg) scale(1.02); } 55% { transform: rotate(1.8deg) scale(.995); } 80% { transform: rotate(-.8deg) scale(1); } }
+        /* ฝุ่นแสงลอยขึ้นช้า ๆ วนไม่รู้จบ — transform/opacity ล้วน ไม่กระทบ layout */
+        @keyframes dq-float { 0% { opacity: 0; transform: translateY(0) scale(.9); } 20% { opacity: var(--dq-peak, .45); } 80% { opacity: var(--dq-peak, .45); } 100% { opacity: 0; transform: translateY(var(--dq-rise, -32px)) scale(1.05); } }
+        /* เคารพการตั้งค่าลดการเคลื่อนไหวของเครื่อง — ปิดของประดับ เหลือแต่เนื้อหา */
+        @media (prefers-reduced-motion: reduce) {
+          .dq-anim, .dq-particle { animation: none !important; transition: none !important; }
+          .dq-particle { opacity: .25 !important; }
+        }
       `}</style>
+
+      {/* ฝุ่นแสงพื้นหลัง — ตกแต่งล้วน กดทะลุได้ (pointer-events-none) และอยู่หลังเนื้อหาทั้งหมด */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        {DQ_PARTICLES.map((p, i) => (
+          <span
+            key={i}
+            className="dq-particle absolute"
+            style={{
+              left: p.left,
+              top: p.top,
+              width: p.char ? undefined : p.size,
+              height: p.char ? undefined : p.size,
+              fontSize: p.char ? p.size : undefined,
+              lineHeight: 1,
+              color: p.char ? p.color : undefined,
+              background: p.char ? undefined : p.color,
+              borderRadius: p.char ? undefined : "9999px",
+              "--dq-rise": p.rise,
+              "--dq-peak": p.peak,
+              animation: `dq-float ${p.dur} ease-in-out ${p.delay} infinite`,
+            }}
+          >
+            {p.char}
+          </span>
+        ))}
+      </div>
 
       {/* toggle สำหรับ preview แต่ละ state (ปิดได้ด้วย prop ตอนต่อ flow จริง) */}
       {showStateToggle && (
@@ -508,6 +607,7 @@ export default function DailyQuestPage({
           <div className="mt-4">
             <StatStrip
               stats={effectiveStats}
+              animate={intro}
               subs={
                 effectiveUi === "day1"
                   ? { xp: "เก็บแต้มแรกวันนี้", streak: "เริ่มนับวันนี้", board: "ทำเควสแรกก่อน" }
@@ -519,10 +619,10 @@ export default function DailyQuestPage({
           </div>
 
           {/* แถบ EXP แรงค์: B ──▶ A */}
-          <RankBar stats={effectiveStats} />
+          <RankBar stats={effectiveStats} style={enter(5)} />
 
           {/* การ์ดเควสวันนี้ */}
-          <div className="mt-4 rounded-2xl border-2 border-[#FBCFE8] bg-white/80 p-4">
+          <div className="dq-anim mt-4 rounded-2xl border-2 border-[#FBCFE8] bg-white/80 p-4" style={enter(6)}>
             <div className="flex items-center gap-2 text-[11px] text-[#9D5C7C]">
               <span>⏱ {quest.minutes} นาที</span>
               <span>•</span>
@@ -557,13 +657,14 @@ export default function DailyQuestPage({
               <span className="text-[10px] text-[#9D5C7C]">ติ๊กครบทุกข้อถึงได้ XP นะ</span>
             </div>
             <div className="mt-2 flex flex-col gap-2">
-              {checklistItems.map((item) => {
+              {checklistItems.map((item, idx) => {
                 const isOn = checked.includes(item.id);
                 return (
                   <button
                     key={item.id}
                     onClick={() => toggleItem(item.id)}
-                    className={`group flex w-full cursor-pointer items-center gap-3 rounded-2xl border-2 px-3.5 py-3 text-left transition active:translate-y-px ${
+                    style={tapped === item.id ? WOBBLE : enter(7 + idx)}
+                    className={`dq-anim group flex w-full cursor-pointer items-center gap-3 rounded-2xl border-2 px-3.5 py-3 text-left transition active:translate-y-px ${
                       isOn
                         ? "border-[#8B5CF6]/40 bg-white"
                         : "border-[#FBCFE8] bg-white/70 hover:-translate-y-0.5 hover:border-[#F9A8D4] hover:bg-white hover:shadow-[0_10px_22px_rgba(236,72,153,.15)]"
@@ -591,10 +692,23 @@ export default function DailyQuestPage({
 
           {/* ปุ่มเคลม XP โผล่เมื่อติ๊กครบ — เลื่อนหน้าลงมาหาเอง */}
           {allChecked && (
-            <div ref={ctaRef} className="mt-auto pb-1 pt-5" style={{ animation: "dq-in .25s ease-out" }}>
+            <div ref={ctaRef} className="relative mt-auto pb-1 pt-5" style={{ animation: "dq-in .25s ease-out" }}>
+              {/* ประกายเล่นรอบเดียวตอนปุ่มโผล่ — บอกว่า "ครบแล้ว กดได้" โดยไม่ต้องมีข้อความเพิ่ม */}
+              <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-3 block">
+                {CTA_SPARKS.map((sp, i) => (
+                  <span
+                    key={i}
+                    className="absolute font-heading text-[13px]"
+                    style={{ left: sp.left, right: sp.right, top: sp.top, color: sp.color, animation: `dq-spark .9s ease-out ${sp.delay} both` }}
+                  >
+                    {sp.char}
+                  </span>
+                ))}
+              </span>
               <button
                 onClick={handleClaim}
                 disabled={claiming}
+                style={tapped === "cta" ? WOBBLE : undefined}
                 className={`w-full rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 py-2.5 font-heading text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,.30)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(139,92,246,.42)] hover:brightness-105 active:translate-y-px ${claiming ? "opacity-70" : ""}`}
               >
                 {claiming ? "กำลังเคลม..." : `เคลม ${quest.xp} XP เลย 🎉`}
