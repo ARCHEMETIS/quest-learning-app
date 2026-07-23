@@ -200,10 +200,14 @@ const QUEST_SHAPE_SCHEMA = {
 // เควสเดี่ยว: { title, description, xp_reward, checklist: [{label, link_url}] }
 export const QUEST_JSON_SCHEMA = QUEST_SHAPE_SCHEMA;
 
-// roadmap เต็ม (สร้างใหม่): { phases: [{phase_number, title, description}], first_quest: <QUEST_JSON_SCHEMA> }
+// roadmap เต็ม (สร้างใหม่): { topic_ok, phases: [{phase_number, title, description}], first_quest: <QUEST_JSON_SCHEMA> }
+// topic_ok = ด่านกรองหัวข้อชั้นที่ 2 (ดู _shared/topicModeration.js) — ให้โมเดลตีกลับหัวข้อที่ไม่ใช่การเรียนรู้
+// ในคอลเดียวกับที่ generate อยู่แล้ว ไม่เพิ่ม request/โควตา; phases+first_quest ยัง required อยู่ตาม schema
+// (โมเดลจะกรอกมาแบบขอไปทีตอนปฏิเสธ) ฝั่งโค้ดเช็ค topic_ok ก่อนเสมอแล้วทิ้งเนื้อหาทั้งก้อนถ้าเป็น false
 export const ROADMAP_JSON_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    topic_ok: { type: 'BOOLEAN' },
     phases: {
       type: 'ARRAY',
       items: {
@@ -220,7 +224,7 @@ export const ROADMAP_JSON_SCHEMA = {
     },
     first_quest: QUEST_SHAPE_SCHEMA,
   },
-  required: ['phases', 'first_quest'],
+  required: ['topic_ok', 'phases', 'first_quest'],
 };
 
 // เควสต่อเนื่อง (nightly pre-generate, ticket 08): เหมือน QUEST_JSON_SCHEMA + สัญญาณ phase ปัจจุบัน/ใหม่

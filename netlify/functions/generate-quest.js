@@ -4,6 +4,7 @@
 import { requireUser, unauthorized, json } from './_shared/auth.js';
 import { getAdminClient } from './_shared/supabaseAdmin.js';
 import { createFreeformRoadmap, FREE_PLAN_LIMIT_MESSAGE } from './_shared/questGenerator.js';
+import { checkTopicText, TOPIC_REJECT_CODE, TOPIC_REJECT_MESSAGE } from './_shared/topicModeration.js';
 
 const LEVELS = ['beginner', 'intermediate', 'advanced'];
 const MINUTES = [15, 30, 60];
@@ -27,6 +28,14 @@ export default async (req) => {
   if (!LEVELS.includes(level)) return json(400, { error: 'level ต้องเป็น beginner/intermediate/advanced' });
   if (!MINUTES.includes(minutesPerDay)) return json(400, { error: 'minutes_per_day ต้องเป็น 15/30/60' });
 
+  // ด่านกรองหัวข้อชั้นที่ 1 (บล็อกลิสต์) — ยิงก่อนแตะ Gemini เสมอ ไม่เสียโควตาฟรีไปกับหัวข้อที่รู้อยู่แล้วว่าไม่ผ่าน
+  // ชั้นที่ 2 (โมเดลตัดสินตามบริบท) อยู่ใน createFreeformRoadmap — คืน error code เดียวกัน
+  const moderation = checkTopicText(topicTitle);
+  if (!moderation.ok) {
+    console.warn(`[generate-quest] ปฏิเสธหัวข้อจากบล็อกลิสต์ (matched: ${moderation.matched}) user=${user.id}`);
+    return json(400, { error: TOPIC_REJECT_MESSAGE, code: TOPIC_REJECT_CODE });
+  }
+
   const admin = getAdminClient();
 
   try {
@@ -43,6 +52,9 @@ export default async (req) => {
     }
     if (err.code === 'FREE_PLAN_SAVED_ROADMAP_LIMIT') {
       return json(409, { error: err.message, code: err.code });
+    }
+    if (err.code === TOPIC_REJECT_CODE) {
+      return json(400, { error: err.message, code: err.code });
     }
     return json(500, { error: String(err.message || err) });
   }

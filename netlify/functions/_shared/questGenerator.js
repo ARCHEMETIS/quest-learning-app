@@ -7,6 +7,7 @@ import {
   ROADMAP_JSON_SCHEMA,
   QUEST_CONTINUATION_JSON_SCHEMA,
 } from './gemini.js';
+import { TOPIC_REJECT_CODE, TOPIC_REJECT_MESSAGE } from './topicModeration.js';
 
 export const FREE_PLAN_LIMIT_MESSAGE =
   'แผนฟรีเรียนได้ทีละ 1 หัวข้อ — ปิด roadmap เดิมก่อน หรืออัปเกรด Premium เพื่อเรียนหลายหัวข้อพร้อมกัน';
@@ -215,10 +216,16 @@ function normalizePhases(phases) {
   }));
 }
 
-const FREEFORM_SYSTEM_PROMPT = `คุณคือระบบออกแบบ "เส้นทางเรียนรู้" (roadmap) ภาษาไทยสำหรับแอปเควสรายวัน ลุยเควส (LuiQuest)
+export const FREEFORM_SYSTEM_PROMPT = `คุณคือระบบออกแบบ "เส้นทางเรียนรู้" (roadmap) ภาษาไทยสำหรับแอปเควสรายวัน ลุยเควส (LuiQuest)
 ผู้เรียนพิมพ์หัวข้อที่อยากเก่งเอง (ไม่ใช่ 6 หัวข้อ curated ของแอป) งานของคุณคือวางโครง roadmap คร่าว ๆ (~4 เฟส) + ออกแบบเควสแรกที่ทำได้ทันทีวันนี้
 
-กติกาสำคัญ:
+ก่อนอื่นตัดสินก่อนว่าหัวข้อนี้ใช้ได้ไหม แล้วตอบใน topic_ok:
+- topic_ok = true เมื่อหัวข้อเป็น "สิ่งที่คนตั้งใจฝึกให้เก่งขึ้นได้จริง" — ทักษะ วิชา ภาษา กีฬา ดนตรี งานฝีมือ อาชีพ งานอดิเรก การดูแลตัวเอง ฯลฯ (ครอบคลุมหัวข้อกว้าง ๆ อย่าง "ทำอาหาร" หรือเฉพาะทางอย่าง "อ่านงบการเงิน" ก็ใช้ได้ทั้งคู่)
+- topic_ok = false เมื่อหัวข้อเป็นเรื่องเพศ/ลามก, คำหยาบหรือคำด่า, ความรุนแรงหรือทำร้ายคน, สิ่งผิดกฎหมาย/ทำอันตราย (เช่น ทำระเบิด ทำยาเสพติด โกงข้อสอบ แฮกบัญชีคนอื่น), การเหยียด/สร้างความเกลียดชัง, หรือเป็นข้อความมั่ว ๆ พิมพ์เล่นที่ไม่ใช่หัวข้อเรียน
+- ตอนตัดสินให้ดูเจตนาจริงของหัวข้อ ไม่ใช่แค่คำ — "โทษของยาเสพติด" หรือ "ความปลอดภัยไซเบอร์" คือหัวข้อเรียนที่ใช้ได้ (true)
+- ถ้า topic_ok = false ให้กรอก phases/first_quest แบบสั้นที่สุดพอผ่าน schema (ระบบจะทิ้งทั้งก้อน ไม่ต้องตั้งใจเขียน) และห้ามใส่เนื้อหาหยาบคายลงไป
+
+ถ้า topic_ok = true ให้ทำตามกติกาต่อไปนี้:
 - เขียนทุกอย่างเป็นภาษาไทย กระชับ เป็นกันเอง ไม่ใช้สำนวน RPG จ๋า (ห้าม "ท่านนักผจญภัย")
 - phases: ~4 เฟส แต่ละเฟสมี title (สั้น) + description (1 ประโยค) ครอบคลุมตั้งแต่พื้นฐานถึงลงมือทำจริง
 - first_quest: เควสแรกที่ทำได้ทันทีวันนี้ เหมาะกับระดับพื้นฐานและเวลาที่มี
@@ -226,7 +233,7 @@ const FREEFORM_SYSTEM_PROMPT = `คุณคือระบบออกแบบ
   - checklist: 2-4 ข้อ สั้น กระชับ เป็นขั้นตอนที่ลงมือทำได้จริงวันนี้
   - link_url (ถ้าจะใส่): ใส่ได้เฉพาะ "หน้าหลัก" ของเว็บไซต์เรียนที่มีจริงและมีชื่อเสียง (เช่น https://www.youtube.com/ หรือ https://www.coursera.org/) ห้ามแต่ง URL ลึก/เจาะจงหน้าใดหน้าหนึ่งเด็ดขาด — ถ้าไม่แน่ใจว่ามี URL จริงให้เว้นว่างไว้ (null) ระบบจะเติมลิงก์ค้นหาให้เอง`;
 
-function buildFreeformRoadmapPrompt({ topicTitle, level, minutesPerDay }) {
+export function buildFreeformRoadmapPrompt({ topicTitle, level, minutesPerDay }) {
   return `ผู้เรียนอยากเก่ง: "${topicTitle}"
 ระดับพื้นฐาน: ${LEVEL_LABEL_TH[level] ?? level}
 เวลาที่มีต่อวัน: ${minutesPerDay} นาที
@@ -291,6 +298,14 @@ export async function createFreeformRoadmap(admin, { userId, topicTitle, level, 
     });
   } catch (err) {
     if (!err?.exhausted) throw err; // error อื่นที่ไม่ใช่ chain หมด (bug/env) โยนต่อเป็น 500 จริง ไม่ silent fallback
+  }
+
+  // ด่านกรองหัวข้อชั้นที่ 2 — โมเดลตีกลับเอง (ชั้นที่ 1 = บล็อกลิสต์ใน generate-quest.js ยิงก่อนถึง Gemini)
+  // ทิ้งเนื้อหาที่ generate มาทั้งก้อน ไม่ insert roadmap ใด ๆ ลง DB (ไม่กินเพดานหัวข้อ ไม่มีขยะค้าง)
+  if (generated && generated.topic_ok === false) {
+    const err = new Error(TOPIC_REJECT_MESSAGE);
+    err.code = TOPIC_REJECT_CODE;
+    throw err;
   }
 
   if (!generated) {

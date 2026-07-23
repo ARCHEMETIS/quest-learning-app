@@ -187,7 +187,8 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
       } catch (err) {
         if (!cancelled) {
           setGenError(err?.message || "สร้างเควสไม่สำเร็จ ลองใหม่อีกครั้ง");
-          setUi("step3");
+          // หัวข้อไม่ผ่านด่านกรอง = ต้องกลับไปแก้ที่ขั้น 1 (ขั้น 3 เป็นเรื่องเวลา แก้ยังไงก็ไม่ผ่าน)
+          setUi(err?.code === "TOPIC_NOT_ALLOWED" ? "step1" : "step3");
         }
       }
     })();
@@ -318,6 +319,13 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
             </div>
           )}
 
+          {/* แจ้ง error จากการสร้างเควส — โชว์บนขั้นที่ผู้ใช้ถูกส่งกลับมาแก้ (หัวข้อไม่ผ่าน -> ขั้น 1, อื่น ๆ -> ขั้น 3) */}
+          {genError && (ui === "step1" || ui === "step3") && (
+            <div className="mb-4 flex items-center gap-1.5 self-center rounded-full bg-red-100 px-3 py-1.5 text-[11px] text-red-600">
+              ⚠️ {genError}
+            </div>
+          )}
+
           {ui === "step1" && (
             <>
               <div className="flex flex-col items-center text-center">
@@ -398,11 +406,6 @@ export default function OnboardingFlow({ initialState = "step1", onComplete, sho
 
           {ui === "step3" && (
             <>
-              {genError && (
-                <div className="mb-4 flex items-center gap-1.5 self-center rounded-full bg-red-100 px-3 py-1.5 text-[11px] text-red-600">
-                  ⚠️ {genError}
-                </div>
-              )}
               <div className="flex flex-col items-center text-center">
                 <h1 className="font-heading text-xl font-bold">ว่างให้ลุยวันละกี่นาที?</h1>
                 <p className="mt-1 text-xs text-[#9D5C7C]">เลือกตามจริง — น้อยแต่สม่ำเสมอ ชนะขาด</p>
