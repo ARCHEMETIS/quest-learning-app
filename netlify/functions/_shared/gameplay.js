@@ -14,7 +14,8 @@ export function nextStreak({ lastQuestDate, todayStr = bangkokDateStr() }) {
   return 1; // ขาดไปอย่างน้อย 1 วัน — เริ่ม streak ใหม่
 }
 
-export function computeGrade(currentStreak) {
-  const band = GRADE_BANDS.reduce((acc, b) => (currentStreak >= b.min ? b : acc), GRADE_BANDS[0]);
+// เกรดคิดจาก total XP (เปลี่ยนจาก streak เมื่อ 23 ก.ค. 2026 — ดูเหตุผลใน src/lib/gradeBands.js)
+export function computeGrade(totalXp) {
+  const band = GRADE_BANDS.reduce((acc, b) => (totalXp >= b.min ? b : acc), GRADE_BANDS[0]);
   return band.grade;
 }

@@ -320,10 +320,11 @@ begin
   end;
   v_new_longest := greatest(v_profile.longest_streak, v_new_streak);
 
-  -- grade = band ที่ min สูงสุดซึ่ง streak ใหม่ถึง (ตรรกะเดียวกับ computeGrade)
+  -- grade = band ที่ min สูงสุดซึ่ง "XP รวมใหม่" ถึง (ตรรกะเดียวกับ computeGrade)
+  -- เดิมตัดจาก streak — เปลี่ยนเป็น XP เมื่อ 23 ก.ค. 2026 (เหตุผลใน src/lib/gradeBands.js)
   select b->>'grade' into v_grade
   from jsonb_array_elements(p_grade_bands) b
-  where (b->>'min')::integer <= v_new_streak
+  where (b->>'min')::integer <= (v_profile.total_xp + p_xp)
   order by (b->>'min')::integer desc
   limit 1;
 

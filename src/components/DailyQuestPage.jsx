@@ -97,30 +97,43 @@ const Icon = ({ name, className = "h-4 w-4" }) => (
 
 const RANK_COLOR = { S: "text-[#FBBF24]", A: "text-emerald-600", B: "text-[#8B5CF6]", C: "text-amber-600" };
 
-// แถบ EXP สู่แรงค์ถัดไป — ต้นทาง = แรงค์ปัจจุบัน ปลายทาง = แรงค์ถัดไป, สี gradient ไหลวนตลอด
+// หลอด XP สู่เลเวลถัดไป — ทำเควสเสร็จเมื่อไหร่ก็ขยับทันที (ระบบเลเวลแบบเกม ดู src/lib/gradeBands.js)
+// เดิมหลอดนี้นับ "วันติด" จึงค้าง 0% ทั้งที่ได้ XP มาแล้ว (เจ้าของเจอตอนใช้จริง 23 ก.ค. 2026)
+// สีไหลวนตลอดด้วย dq-rank-flow + ความกว้างมี transition ให้เห็นมันวิ่งไปตอนเคลม XP
+// ตอนหลอดว่าง (เพิ่งเลเวลอัพ) ยังโชว์แถบจาง ๆ ไว้ให้รู้ว่าหลอดมีอยู่ ไม่ใช่หน้าจอพัง
 const RankBar = ({ stats }) => (
   <div className="mt-3 rounded-2xl border border-[#FBCFE8] bg-white/70 px-3.5 py-2.5">
     <div className="flex items-center justify-between text-[10px] text-[#9D5C7C]">
-      <span>streak สู่แรงค์ถัดไป</span>
-      <span className="font-bold">{stats.rankXp} วัน</span>
+      <span>
+        XP สู่เลเวลถัดไป
+        {stats.xpToNext != null && <span className="ml-1 text-[#8B5CF6]">อีก {stats.xpToNext} XP</span>}
+      </span>
+      <span className="font-bold">{stats.rankXp} XP</span>
     </div>
     <div className="mt-1.5 flex items-center gap-2.5">
-      <span className={`font-heading text-lg font-bold ${RANK_COLOR[stats.rank?.charAt(0)] || "text-[#9D5C7C]"}`}>
-        {stats.rank}
+      <span className="flex flex-col items-center leading-none">
+        <span className={`font-heading text-lg font-bold ${RANK_COLOR[stats.rank?.charAt(0)] || "text-[#9D5C7C]"}`}>
+          {stats.rank}
+        </span>
+        <span className="mt-0.5 text-[9px] font-bold text-[#9D5C7C]">Lv.{stats.level ?? 1}</span>
       </span>
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[#FBCFE8]/60">
+      <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-[#FBCFE8]/60">
         <div
-          className="h-full rounded-full"
+          className="h-full rounded-full transition-[width] duration-700 ease-out"
           style={{
-            width: `${stats.rankPct}%`,
+            width: `${Math.max(stats.rankPct ?? 0, 3)}%`, // ขั้นต่ำ 3% ให้เห็นหัวหลอดเสมอ
+            opacity: (stats.rankPct ?? 0) === 0 ? 0.35 : 1,
             backgroundImage: "linear-gradient(90deg,#8B5CF6,#EC4899,#FBBF24,#EC4899,#8B5CF6)",
             backgroundSize: "200% 100%",
             animation: "dq-rank-flow 2.5s linear infinite",
           }}
         />
       </div>
-      <span className={`font-heading text-lg font-bold ${RANK_COLOR[stats.nextRank?.charAt(0)] || "text-[#9D5C7C]"}`}>
-        {stats.nextRank}
+      <span className="flex flex-col items-center leading-none">
+        <span className={`font-heading text-lg font-bold ${RANK_COLOR[stats.nextRank?.charAt(0)] || "text-[#9D5C7C]"}`}>
+          {stats.nextRank}
+        </span>
+        <span className="mt-0.5 text-[9px] font-bold text-[#9D5C7C]">Lv.{stats.nextLevel ?? 2}</span>
       </span>
     </div>
   </div>
@@ -172,6 +185,7 @@ export default function DailyQuestPage({
   onOpenCoach,
   onShareStreak,
   onInvite,
+  onCoach,
   showStateToggle = true,
   heightClass = "min-h-dvh", // ฝังในเชลล์ส่ง "min-h-full" ให้เกาะความสูง main ที่หักหัว/nav ออกแล้ว (standalone = min-h-dvh)
   status,
@@ -396,8 +410,17 @@ export default function DailyQuestPage({
 
       {effectiveUi === "restday" && (
         /* ---------- ทำเควสครบของวันนี้แล้ว (กลับมาดูซ้ำ ไม่ใช่เพิ่งเคลม) — พักได้ ไม่ใช่ "ยังไม่พร้อม/ลองใหม่" ---------- */
-        <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-8 pb-12 text-center md:max-w-lg">
-          <GhostMascot mood="celebrate" className="mb-5 scale-110" />
+        <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center px-6 pb-24 pt-6 text-center md:max-w-xl">
+          {/* สถิติ + หลอด XP ต้องเห็นได้ในหน้านี้ด้วย — เดิมหน้านี้มีแต่ข้อความ "รอพรุ่งนี้"
+              ทำให้ดูเลเวล/XP/อันดับไม่ได้เลยจนกว่าจะข้ามวัน (เจ้าของเจอตอนใช้จริง 23 ก.ค. 2026) */}
+          <div className="w-full text-left">
+            <StatStrip stats={effectiveStats} />
+            <RankBar stats={effectiveStats} />
+          </div>
+
+          {/* mood "groove" วนไม่รู้จบ (เต้น + โน้ตเพลงลอย) — เดิมใช้ "celebrate" ซึ่งเป็น mood เดียว
+              ที่ไม่ใช่ infinite (ghost-jump .5s steps(2) 3) เด้ง 3 ครั้งแล้วค้างนิ่งไปเลย */}
+          <GhostMascot mood="groove" className="my-5 scale-110" />
           <h1 className="font-heading text-xl font-bold">เควสวันนี้จบแล้ว! 🎉</h1>
           <p className="mt-1.5 text-sm text-[#9D5C7C]">
             streak <span className="font-bold text-[#831843]">{effectiveStats.streak} วันติด</span> 🔥 — เก่งมาก พักได้เต็มที่วันนี้
@@ -417,6 +440,22 @@ export default function DailyQuestPage({
             </button>
           </div>
           <p className="mt-4 text-[11px] text-[#9D5C7C]/80">เควสใหม่มาตอนตี 5 ของพรุ่งนี้ — เจอกันใหม่!</p>
+
+          {/* ทางออกจากหน้านี้ — เดิมไม่มีเลย ค้างอยู่กับข้อความ "รอพรุ่งนี้" อย่างเดียว */}
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-[11px]">
+            <button
+              onClick={() => window.dispatchEvent(new Event("luiquest-open-profile"))}
+              className="rounded-full border border-[#FBCFE8] bg-white/80 px-3.5 py-1.5 font-bold text-[#8B5CF6] transition hover:border-[#8B5CF6]/50 active:translate-y-px"
+            >
+              ดูโปรไฟล์ / สลับหัวข้อ
+            </button>
+            <button
+              onClick={() => onCoach?.()}
+              className="rounded-full border border-[#FBCFE8] bg-white/80 px-3.5 py-1.5 font-bold text-[#8B5CF6] transition hover:border-[#8B5CF6]/50 active:translate-y-px"
+            >
+              คุยกับโค้ชต่อ
+            </button>
+          </div>
         </main>
       )}
 

@@ -5,20 +5,25 @@ import StreakCardPage from '../components/StreakCardPage.jsx';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useProfile } from '../hooks/useProfile.jsx';
 import { api } from '../lib/api.js';
-import { GRADE_BANDS, GRADE_ORDER } from '../lib/gradeBands.js';
+import { GRADE_BANDS, GRADE_ORDER, levelProgress } from '../lib/gradeBands.js';
 
-function gradeProgress(streak) {
-  const idx = GRADE_BANDS.reduce((acc, b, i) => (streak >= b.min ? i : acc), 0);
+// ความก้าวหน้าคิดจาก XP สะสมทั้งหมด (ระบบเลเวลแบบเกม — ดู src/lib/gradeBands.js)
+// หลอด = ความคืบหน้าภายในเลเวลปัจจุบัน ทำเควสเสร็จเมื่อไหร่ก็ขยับทันที
+// แรงค์ (F/D/C/B/A/S/SS/SSS) ผูกกับหมุดหมายเลเวล จึงไม่มีทางคิดคนละทางกับหลอด
+function gradeProgress(totalXp) {
+  const idx = GRADE_BANDS.reduce((acc, b, i) => (totalXp >= b.min ? i : acc), 0);
   const current = GRADE_BANDS[idx];
   const next = GRADE_BANDS[idx + 1];
-  if (!next) return { rank: current.grade, nextRank: current.grade, rankPct: 100, rankXp: `${streak}/${streak}` };
-  const span = next.min - current.min;
-  const progressed = streak - current.min;
+  const lv = levelProgress(totalXp);
   return {
     rank: current.grade,
-    nextRank: next.grade,
-    rankPct: Math.min(100, Math.round((progressed / span) * 100)),
-    rankXp: `${progressed}/${span}`,
+    nextRank: next ? next.grade : current.grade,
+    level: lv.level,
+    nextLevel: lv.level + 1,
+    rankPct: lv.pct, // หลอดวิ่งตามเลเวล ไม่ใช่ตามระยะห่างระหว่างแรงค์ (ระยะห่างแรงค์ยาวเกินกว่าจะเห็นขยับ)
+    rankXp: `${lv.xpIntoLevel}/${lv.xpForLevel}`,
+    xpToNext: lv.xpToNext,
+    nextRankLevel: next ? next.level : null,
   };
 }
 
@@ -124,15 +129,18 @@ export default function Quest() {
               ? 'broken'
               : 'ready';
 
-  const grade = gradeProgress(effectiveStreak);
+  const grade = gradeProgress(profile.total_xp);
   const stats = {
     xp: profile.total_xp,
     streak: effectiveStreak,
     phasePct: quest ? Math.round((((quest.day_number - 1) % PHASE_LENGTH_DAYS) + 1) * (100 / PHASE_LENGTH_DAYS)) : 0,
     rank: grade.rank,
     nextRank: grade.nextRank,
+    level: grade.level,
+    nextLevel: grade.nextLevel,
     rankPct: grade.rankPct,
     rankXp: grade.rankXp,
+    xpToNext: grade.xpToNext,
     boardRank: null,
     boardTotal: null,
   };
@@ -145,11 +153,11 @@ export default function Quest() {
     if (!quest) return { ok: false };
     setClaiming(true);
     setClaimError(null);
-    const fromGrade = gradeProgress(effectiveStreak).rank;
+    const fromGrade = gradeProgress(profile.total_xp).rank;
     try {
       const res = await api.completeQuest({ quest_id: quest.id, checked_item_ids: checkedIds }, token);
       const newStreak = res.current_streak ?? profile.current_streak;
-      const toGrade = gradeProgress(newStreak);
+      const toGrade = gradeProgress(res.total_xp ?? profile.total_xp);
       const rankUp = !res.alreadyCompleted && GRADE_ORDER.indexOf(toGrade.rank) > GRADE_ORDER.indexOf(fromGrade);
       // complete-quest ตอบ total_xp/current_streak/grade กลับมาครบแล้ว — patch state ตรง ๆ พอ
       // ไม่ต้องยิง /me เต็ม ๆ ซ้ำ (ประหยัด invocation ฟรี tier บน action ที่ถี่สุดของแอพ)
@@ -205,6 +213,7 @@ export default function Quest() {
       onOpenCoach={() => navigate('/coach')}
       onShareStreak={() => setShowStreakCard(true)}
       onInvite={() => window.dispatchEvent(new Event('luiquest-open-profile'))}
+      onCoach={() => navigate('/coach')}
       heightClass="min-h-full"
     />
     {showStreakCard && (
