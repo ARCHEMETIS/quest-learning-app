@@ -15,12 +15,19 @@ function env(name) {
 const GEMINI_API_KEY = env('GEMINI_API_KEY');
 
 // แบ่งงานตามโมเดล (#03/#07): งานหนัก (roadmap/เควส) กับแชท ใช้คนละตัวหลัก (ถังโควต้าแยกกัน)
-// อัพเดต 21 ก.ค. 2026: gemini-3-flash-preview (preview) ตอบช้า/hang เป็นบางครั้ง ชนกับ netlify timeout 10s
+// อัพเดต 21 ก.ค. 2026: gemini-3-flash-preview (preview) ตอบช้า/hang เป็นบางครั้ง ชนกับ netlify timeout
 //   → generate เควส on-demand ล้ม (หน้าเควสขึ้น "ไม่พร้อม"). สลับมาใช้โมเดล GA ที่ verify แล้ว 200 + เร็ว (<3s)
-//   ผ่าน AI Studio จริง: 2.5-flash (quest) / 2.5-flash-lite (chat) + fallback สลับกัน (ถัง 2.5-flash-lite แยกจาก quest)
-//   มี GA ใหม่กว่า (gemini-3.5-flash, gemini-3.1-flash-lite) ให้ upgrade ทีหลังได้เมื่อยืนยัน thinkingConfig ผ่าน
-export const QUEST_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-export const CHAT_MODEL_CHAIN = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+//
+// อัพเดต 23 ก.ค. 2026 — **เช็คโควต้าจริงกับ AI Studio dashboard แล้ว (ปิด pending item #11.A.4)**
+//   free tier ต่อโมเดล: 2.5-flash = 5 RPM / **20 RPD**, 2.5-flash-lite = 10 RPM / **20 RPD**,
+//                       3.5-flash = 5 RPM / 20 RPD, **3.1-flash-lite = 15 RPM / 500 RPD**
+//   chain เดิมใช้แต่โมเดล 20 RPD ทั้งคู่ = ทั้งแอพยิงได้ 40 ครั้ง/วัน — แชทอย่างเดียวสเปกให้ 10 ข้อความ/คน/วัน
+//   แปลว่า **ผู้ใช้คนเดียวกินโควตาหมดทั้งแอพ** (dashboard ขึ้นเตือน RPM ชนแล้วจริง 6/5 ตอนเทส 23 ก.ค.)
+//   → เอา 3.1-flash-lite (500 RPD) เข้ามาเป็นก้นถังของทั้งสอง chain: quest ~540 RPD, chat ~520 RPD
+//   เรียงลำดับตามเจตนา: quest เอาคุณภาพนำ (2.5-flash ก่อน) แล้วค่อยไหลลง lite ตอนโควตาตัวดีหมด;
+//   chat เอา 3.1-flash-lite นำเลยเพราะเป็นตัวกินจำนวนครั้ง (10 ข้อความ/คน/วัน) ไม่ได้ต้องการคุณภาพสูงสุด
+export const QUEST_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+export const CHAT_MODEL_CHAIN = ['gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
